@@ -1,0 +1,2 @@
+* hurl-mode
+emacs major mode for [[https://hurl.dev/][hurl]]
