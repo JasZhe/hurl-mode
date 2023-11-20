@@ -320,4 +320,11 @@ extend the font lock region."
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
   )
+
+
+(defun hurl-mode-send-request ()
+  "Simple thin wrapper over the cli command"
+  (interactive)
+  (async-shell-command (concat "hurl " (buffer-file-name))))
+
 (provide 'hurl-mode)
