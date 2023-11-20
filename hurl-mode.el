@@ -83,7 +83,7 @@
 
 
 (defun hurl-mode-fontify-region
-    (beg end keywords syntax-table syntax-propertize-fn)
+    (beg end keywords syntax-table syntax-propertize-fn &optional font-lock-syntactic-face-fn)
   "Fontify a region between BEG and END using another mode's fontification.
 
 KEYWORDS, SYNTAX-TABLE, SYNTACTIC-KEYWORDS and
@@ -99,6 +99,7 @@ respectively."
             (syntax-propertize-function syntax-propertize-fn)
             (font-lock-multiline 'undecided)
             (font-lock-dont-widen t)
+            (font-lock-syntactic-face-function font-lock-syntactic-face-fn)
             font-lock-keywords-only
             font-lock-extend-region-functions
             font-lock-keywords-case-fold-search)
@@ -156,13 +157,39 @@ This requires that `nxml-mode' is available."
     (modify-syntax-entry ?\" "\"" st)
     st))
 
+(defconst json-mode-quoted-key-re
+  (rx (group (char ?\")
+             (zero-or-more (or (seq ?\\ ?\\)
+                               (seq ?\\ ?\")
+                               (seq ?\\ (not (any ?\" ?\\)))
+                               (not (any ?\" ?\\))))
+             (char ?\"))
+      (zero-or-more blank)
+      ?\:))
+
+(defun json-mode--syntactic-face (state)
+  "Return syntactic face function for the position represented by STATE.
+STATE is a `parse-partial-sexp' state, and the returned function is the
+json font lock syntactic face function."
+  (cond
+   ((nth 3 state)
+    ;; This might be a string or a name
+    (let ((startpos (nth 8 state)))
+      (save-excursion
+        (goto-char startpos)
+        (if (looking-at-p json-mode-quoted-key-re)
+            font-lock-keyword-face
+          font-lock-string-face))))
+   ((nth 4 state) font-lock-comment-face)))
+
 (defun hurl-fontify-region-as-json (beg end)
   "Fontify JSON code from BEG to END."
   (when (boundp 'json-font-lock-keywords-1)
     (hurl-mode-fontify-region beg end
                               json-font-lock-keywords-1
                               json-mode-syntax-table
-                              (lambda (start end) nil))))
+                              (lambda (start end) nil)
+                              #'json-mode--syntactic-face)))
 
 
 (defun hurl-highlight-filter-xml (limit)
@@ -179,12 +206,23 @@ This requires that `nxml-mode' is available."
 (defun hurl-highlight-filter-json (limit)
   "Highlight any body region found in the text up to LIMIT."
   (when (re-search-forward "```json[^`]*```$" limit t)
-    (let ((code-start (+ (match-beginning 0) 7))
+    (let ((code-start (+ (match-beginning 0) 8))
 	  (code-end (- (match-end 0) 4)))
       (message "code start %s" code-start)
       (message "code end %s" code-end)
       (save-match-data
         (hurl-fontify-region-as-json code-start code-end))
+      (goto-char (match-end 0)))))
+
+(defun hurl-highlight-filter-graphql (limit)
+  "Highlight any body region found in the text up to LIMIT."
+  (when (and (fboundp 'graphql-mode) (re-search-forward "```graphql[^`]*```$" limit t))
+    (let ((code-start (+ (match-beginning 0) 11))
+	  (code-end (- (match-end 0) 4)))
+      (message "code start %s" code-start)
+      (message "code end %s" code-end)
+      (save-match-data
+        (ignore-errors (org-src-font-lock-fontify-block "graphql" code-start code-end)))
       (goto-char (match-end 0)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -264,6 +302,7 @@ extend the font lock region."
     (,hurl-mode--header-regexp (1 'hurl-mode-header-names-face) (2 'hurl-mode-header-value-face))
     (hurl-highlight-filter-xml)
     (hurl-highlight-filter-json)
+    (hurl-highlight-filter-graphql)
     (,hurl-mode-body-regexp (0 'hurl-mode-body-face))
     (,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))))
 
@@ -281,5 +320,4 @@ extend the font lock region."
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
   )
-
 (provide 'hurl-mode)

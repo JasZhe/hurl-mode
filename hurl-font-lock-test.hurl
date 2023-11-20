@@ -19,8 +19,20 @@ Content-Type: application/json
 alice: secret
 
 ```json
-{
-	"some": "json"
+{ "soething": 1,
+	"something": "json",
+	"something": "else",
+	{
+		"mything": "else"
+	}
 }
 ```
 
+```graphql
+{
+    human(id: "1000") {
+        name
+        height(unit: FOOT)
+    }
+}
+```
