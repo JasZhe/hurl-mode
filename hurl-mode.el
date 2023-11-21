@@ -52,7 +52,7 @@
 (defconst hurl-mode--http-method-regexp
   (rx-to-string `(: bol
 		    (group (or ,@hurl-mode--http-method-keywords))
-		    (group (* any)))))
+		    (group (+ not-newline)))))
 
 
 (defconst hurl-mode--section-header-keywords
@@ -200,7 +200,7 @@ json font lock syntactic face function."
       (message "code start %s" code-start)
       (message "code end %s" code-end)
       (save-match-data
-        (hurl-fontify-region-as-xml code-start code-end))
+        (ignore-errors (org-src-font-lock-fontify-block "xml" code-start code-end)))
       (goto-char (match-end 0)))))
 
 (defun hurl-highlight-filter-json (limit)
@@ -211,7 +211,7 @@ json font lock syntactic face function."
       (message "code start %s" code-start)
       (message "code end %s" code-end)
       (save-match-data
-        (hurl-fontify-region-as-json code-start code-end))
+        (ignore-errors (org-src-font-lock-fontify-block "json" code-start code-end)))
       (goto-char (match-end 0)))))
 
 (defun hurl-highlight-filter-graphql (limit)
@@ -276,6 +276,7 @@ extend the font lock region."
 (defun hurl-extend-region-contextual ()
   (or
    (hurl-extend-region-body)
+   (font-lock-extend-region-multiline)
    (font-lock-extend-region-multiline)))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -314,9 +315,9 @@ extend the font lock region."
 
 (define-derived-mode hurl-mode text-mode "Hurl"
   "Enable hurl mode"
-  (setq-local font-lock-defaults '((hurl-mode-keywords) t t))
+  (setq-local font-lock-defaults '((hurl-mode-keywords)))
   (setq-local font-lock-multiline t)
-  (setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual))
+  ;;(setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual)) ;; some weird behavior with this where font locking won't show until I press space, but this makes it so our blocks are dynamic
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
   )
