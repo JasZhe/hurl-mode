@@ -197,10 +197,10 @@ json font lock syntactic face function."
   (when (re-search-forward "```xml[^`]*```$" limit t)
     (let ((code-start (+ (match-beginning 0) 7)) 
 	  (code-end (- (match-end 0) 4)))
-      (message "code start %s" code-start)
-      (message "code end %s" code-end)
+      (message "xml code start %s" code-start)
+      (message "xml code end %s" code-end)
       (save-match-data
-        (ignore-errors (org-src-font-lock-fontify-block "xml" code-start code-end)))
+        (hurl-fontify-region-as-xml code-start code-end))
       (goto-char (match-end 0)))))
 
 (defun hurl-highlight-filter-json (limit)
@@ -208,8 +208,6 @@ json font lock syntactic face function."
   (when (re-search-forward "```json[^`]*```$" limit t)
     (let ((code-start (+ (match-beginning 0) 8))
 	  (code-end (- (match-end 0) 4)))
-      (message "code start %s" code-start)
-      (message "code end %s" code-end)
       (save-match-data
         (ignore-errors (org-src-font-lock-fontify-block "json" code-start code-end)))
       (goto-char (match-end 0)))))
@@ -219,31 +217,32 @@ json font lock syntactic face function."
   (when (and (fboundp 'graphql-mode) (re-search-forward "```graphql[^`]*```$" limit t))
     (let ((code-start (+ (match-beginning 0) 11))
 	  (code-end (- (match-end 0) 4)))
-      (message "code start %s" code-start)
-      (message "code end %s" code-end)
       (save-match-data
         (ignore-errors (org-src-font-lock-fontify-block "graphql" code-start code-end)))
       (goto-char (match-end 0)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; stole a lot of this from haml-mode
 
 (defun hurl-find-containing-block (re)
   "If point is inside a block matching RE, return (start . end) for the block."
   (save-excursion
 
-    (message "find containing block")
+    (message "find containing block re %s" re)
     (let ((pos (point))
           start end)
       (beginning-of-line)
+      ;; think the issue is here
+      (message "position %s" pos)
       (when (and
              (or (looking-at re)
                  (when (re-search-backward re nil t)
                    (looking-at re)))
-             (< pos (match-end 0)))
+	     (let ((m-end (+ 1 (match-end 0))))
+	       (message "match end %s" m-end)
+               (<= pos m-end)))
         (setq start (match-beginning 0)
               end (match-end 0)))
-      (when start
+      (when (or start end)
 	(message "start %s end %s" start end)
         (cons start end)))))
 
@@ -259,7 +258,7 @@ extend the font lock region."
       (let ((new-bounds (funcall extender)))
         (when new-bounds
           (setq font-lock-beg (min font-lock-beg (car new-bounds))
-                font-lock-end (max font-lock-end (cdr new-bounds))))))
+                font-lock-end (+ 0 (max font-lock-end (cdr new-bounds)))))))
     (or (/= old-beg font-lock-beg)
         (/= old-end font-lock-end))))
 
@@ -276,26 +275,9 @@ extend the font lock region."
 (defun hurl-extend-region-contextual ()
   (or
    (hurl-extend-region-body)
-   (font-lock-extend-region-multiline)
+   (font-lock-extend-region-wholelines)
    (font-lock-extend-region-multiline)))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-
-
-(defun hurl-mode--font-lock-extend-region ()
-  "Extend the search region to include an entire block of text."
-  ;; Avoid compiler warnings about these global variables from font-lock.el.
-  ;; See the documentation for variable `font-lock-extend-region-functions'.
-  (eval-when-compile (defvar font-lock-beg) (defvar font-lock-end))
-  (save-excursion
-    (goto-char font-lock-beg)
-    (let ((found (or (re-search-backward "^```" nil t) (point-min))))
-      (goto-char font-lock-end)
-      (when (re-search-forward "```$" nil t)
-        (beginning-of-line)
-        (setq font-lock-end (point)))
-      (setq font-lock-beg found))))
 
 (defconst hurl-mode-keywords
   `((,hurl-mode--http-method-regexp (1 'hurl-mode-method-face) (2 'hurl-mode-url-face))
@@ -317,7 +299,7 @@ extend the font lock region."
   "Enable hurl mode"
   (setq-local font-lock-defaults '((hurl-mode-keywords)))
   (setq-local font-lock-multiline t)
-  ;;(setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual)) ;; some weird behavior with this where font locking won't show until I press space, but this makes it so our blocks are dynamic
+  (setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual)) ;; some weird behavior with this where font locking won't show until I press space, but this makes it so our blocks are dynamic
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
   )
