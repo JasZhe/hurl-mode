@@ -1,2 +1,8 @@
 * hurl-mode
 emacs major mode for [[https://hurl.dev/][hurl]]
+
+* TODO usage
+not much so far, just a simple wrapper: ~hurl-mode-send-request~ around the hurl cli command
+
+* Credits:
+Used a lot of code for the extend region function from [[https://github.com/nex3/haml-mode][haml-mode]]
