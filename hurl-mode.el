@@ -19,7 +19,7 @@
 (defface hurl-mode-method-face 
   '((t (:inherit font-lock-keyword-face)))
   "Face for HTTP method."
-:group 'hurl-mode-faces)
+  :group 'hurl-mode-faces)
 
 (defface hurl-mode-url-face
   '((t (:inherit font-lock-function-name-face)))
@@ -51,199 +51,81 @@
   '("GET" "HEAD" "POST" "PUT" "DELETE" "CONNECT" "OPTIONS" "TRACE" "PATCH"))
 (defconst hurl-mode--http-method-regexp
   (rx-to-string `(: bol
-		    (group (or ,@hurl-mode--http-method-keywords))
-		    (group (+ not-newline)))))
+                  (group (or ,@hurl-mode--http-method-keywords))
+                  (group (+ not-newline)))))
 
 
 (defconst hurl-mode--section-header-keywords
   '("[QueryStringParams]" "[FormParams]" "[MultipartFormData]" "[BasicAuth]" "[Cookies]" "[Asserts]" "[Captures]" "[Options]"))
 (defconst hurl-mode--section-header-regexp
   (rx-to-string `(: bol
-		    (or ,@hurl-mode--section-header-keywords))))
+                  (or ,@hurl-mode--section-header-keywords))))
 
 
 (defconst hurl-mode--expected-response-regexp
   (rx-to-string `(: bol
-		    (group "HTTP")
-		    (+ blank)
-		    (group (= 3 digit)))))
-
+                  (group "HTTP")
+                  (+ blank)
+                  (group (= 3 digit)))))
 
 (defconst hurl-mode--header-regexp
   (rx-to-string `(: bol
-		    (group (* (or alpha "_" "-")) ":")
-		    (+ blank)
-		    (group (* any)))))
+                  (group (* (or alpha "_" "-")) ":")
+                  (+ blank)
+                  (group (* any)))))
 
 
 ;; match ``` then anything except for ` then another ``` and end of line
 ;; simple but seems to work really well
-(defconst hurl-mode-body-regexp
-  "```[^`]*```$")
+(defconst hurl-mode-body-regexp "```[^`]*```$")
 
-
-(defun hurl-mode-fontify-region
-    (beg end keywords syntax-table syntax-propertize-fn &optional font-lock-syntactic-face-fn)
-  "Fontify a region between BEG and END using another mode's fontification.
-
-KEYWORDS, SYNTAX-TABLE, SYNTACTIC-KEYWORDS and
-SYNTAX-PROPERTIZE-FN are the values of that mode's
-`font-lock-keywords', `font-lock-syntax-table',
-`font-lock-syntactic-keywords', and `syntax-propertize-function'
-respectively."
-  (message "fontify region")
-  (save-excursion
-    (save-match-data
-      (let ((font-lock-keywords keywords)
-            (font-lock-syntax-table syntax-table)
-            (syntax-propertize-function syntax-propertize-fn)
-            (font-lock-multiline 'undecided)
-            (font-lock-dont-widen t)
-            (font-lock-syntactic-face-function font-lock-syntactic-face-fn)
-            font-lock-keywords-only
-            font-lock-extend-region-functions
-            font-lock-keywords-case-fold-search)
-        (save-restriction
-	  (message "beg %d end %d" beg end)
-          (narrow-to-region (1- beg) end)
-	  (message "next")
-
-	  ;; this is JUST for nxml mode
-	  ;; otherwise nxml-fontify-matcher complains
-	  ;; this tells nxml mode whether to fontify or something
-	  ;; setting to beginning ensures that it always fontifies
-	  ;; tried setting it to end, and there was odd behavior where adding new lines would mess it up
-	  ;; but removing newlines was fine
-	  (setq nxml-prolog-end beg)
-	  
-          ;; font-lock-fontify-region apparently isn't inclusive,
-          ;; so we have to move the beginning back one char
-          (font-lock-fontify-region (1- beg) end t)
-	  )))))
-
-;; REQUIRES THAT NXML HAS BEEN LOADED
-(defun hurl-fontify-region-as-xml (beg end)
-  "Fontify XML code from BEG to END.
-
-This requires that `nxml-mode' is available."
-  (message "fontify as xml")
-  (when (boundp 'nxml-font-lock-keywords)
-    (message "xml mode found")
-    (hurl-mode-fontify-region beg end
-                         nxml-font-lock-keywords
-                         nxml-mode-syntax-table
-                         (lambda (start end) (nxml-syntax-propertize start end)))))
-
-;; inlining the json-mode syntax stuff since it's relatively simple
-(defconst json-mode-number-re (rx (group (one-or-more digit)
-                                         (optional ?\. (one-or-more digit)))))
-(defconst json-mode-keyword-re  (rx (group (or "true" "false" "null"))))
-
-(defconst json-font-lock-keywords-1
-  (list
-   (list json-mode-keyword-re 1 font-lock-constant-face)
-   (list json-mode-number-re 1 font-lock-constant-face))
-  "Level one font lock.")
-
-(defvar json-mode-syntax-table
-  (let ((st (make-syntax-table)))
-    ;; Objects
-    (modify-syntax-entry ?\{ "(}" st)
-    (modify-syntax-entry ?\} "){" st)
-    ;; Arrays
-    (modify-syntax-entry ?\[ "(]" st)
-    (modify-syntax-entry ?\] ")[" st)
-    ;; Strings
-    (modify-syntax-entry ?\" "\"" st)
-    st))
-
-(defconst json-mode-quoted-key-re
-  (rx (group (char ?\")
-             (zero-or-more (or (seq ?\\ ?\\)
-                               (seq ?\\ ?\")
-                               (seq ?\\ (not (any ?\" ?\\)))
-                               (not (any ?\" ?\\))))
-             (char ?\"))
-      (zero-or-more blank)
-      ?\:))
-
-(defun json-mode--syntactic-face (state)
-  "Return syntactic face function for the position represented by STATE.
-STATE is a `parse-partial-sexp' state, and the returned function is the
-json font lock syntactic face function."
-  (cond
-   ((nth 3 state)
-    ;; This might be a string or a name
-    (let ((startpos (nth 8 state)))
-      (save-excursion
-        (goto-char startpos)
-        (if (looking-at-p json-mode-quoted-key-re)
-            font-lock-keyword-face
-          font-lock-string-face))))
-   ((nth 4 state) font-lock-comment-face)))
-
-(defun hurl-fontify-region-as-json (beg end)
-  "Fontify JSON code from BEG to END."
-  (when (boundp 'json-font-lock-keywords-1)
-    (hurl-mode-fontify-region beg end
-                              json-font-lock-keywords-1
-                              json-mode-syntax-table
-                              (lambda (start end) nil)
-                              #'json-mode--syntactic-face)))
-
-
+;; hacky bit to just abuse the org src block fontification for our purposes
+;; TODO: could maybe simplify these down into a single function instead
 (defun hurl-highlight-filter-xml (limit)
-  "Highlight any body region found in the text up to LIMIT."
+  "Highlight any xml region found in the text up to LIMIT."
   (when (re-search-forward "```xml[^`]*```$" limit t)
     (let ((code-start (+ (match-beginning 0) 7)) 
-	  (code-end (- (match-end 0) 4)))
-      (message "xml code start %s" code-start)
-      (message "xml code end %s" code-end)
+          (code-end (- (match-end 0) 4)))
       (save-match-data
-        (hurl-fontify-region-as-xml code-start code-end))
+        (ignore-errors (org-src-font-lock-fontify-block "xml" code-start code-end)))
       (goto-char (match-end 0)))))
 
 (defun hurl-highlight-filter-json (limit)
-  "Highlight any body region found in the text up to LIMIT."
+  "Highlight any json region found in the text up to LIMIT."
   (when (re-search-forward "```json[^`]*```$" limit t)
     (let ((code-start (+ (match-beginning 0) 8))
-	  (code-end (- (match-end 0) 4)))
+          (code-end (- (match-end 0) 4)))
       (save-match-data
         (ignore-errors (org-src-font-lock-fontify-block "json" code-start code-end)))
       (goto-char (match-end 0)))))
 
 (defun hurl-highlight-filter-graphql (limit)
-  "Highlight any body region found in the text up to LIMIT."
+  "Highlight any graphql region found in the text up to LIMIT."
   (when (and (fboundp 'graphql-mode) (re-search-forward "```graphql[^`]*```$" limit t))
     (let ((code-start (+ (match-beginning 0) 11))
-	  (code-end (- (match-end 0) 4)))
+          (code-end (- (match-end 0) 4)))
       (save-match-data
         (ignore-errors (org-src-font-lock-fontify-block "graphql" code-start code-end)))
       (goto-char (match-end 0)))))
 
-;; stole a lot of this from haml-mode
-
+;; stole this extend region stuff from haml mode with
+;; a few modifications to make it work for our use case
 (defun hurl-find-containing-block (re)
   "If point is inside a block matching RE, return (start . end) for the block."
   (save-excursion
 
-    (message "find containing block re %s" re)
     (let ((pos (point))
           start end)
       (beginning-of-line)
-      ;; think the issue is here
-      (message "position %s" pos)
       (when (and
              (or (looking-at re)
                  (when (re-search-backward re nil t)
                    (looking-at re)))
-	     (let ((m-end (+ 1 (match-end 0))))
-	       (message "match end %s" m-end)
+             (let ((m-end (+ 1 (match-end 0))))
                (<= pos m-end)))
         (setq start (match-beginning 0)
               end (match-end 0)))
       (when (or start end)
-	(message "start %s end %s" start end)
         (cons start end)))))
 
 (defun hurl-maybe-extend-region (extender)
@@ -299,7 +181,7 @@ extend the font lock region."
   "Enable hurl mode"
   (setq-local font-lock-defaults '((hurl-mode-keywords)))
   (setq-local font-lock-multiline t)
-  (setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual)) ;; some weird behavior with this where font locking won't show until I press space, but this makes it so our blocks are dynamic
+  (setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual))
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
   )
