@@ -186,6 +186,9 @@ extend the font lock region."
   (setq-local comment-start-skip "#+[\t ]*")
   )
 
+;; so we don't get auto ` pairing if smartparens mode exists
+(when (fboundp 'sp-local-pair)
+  (sp-local-pair 'hurl-mode "`" nil :actions nil))
 
 (defun hurl-mode-send-request ()
   "Simple thin wrapper over the cli command"
