@@ -77,7 +77,7 @@
 
 ;; match ``` then anything except for ` then another ``` and end of line
 ;; simple but seems to work really well
-(defconst hurl-mode-body-regexp "```[^`]*```$")
+(defconst hurl-mode-body-regexp "```[^`]*\n```$")
 
 ;; hacky bit to just abuse the org src block fontification for our purposes
 ;; TODO: could maybe simplify these down into a single function instead
@@ -177,6 +177,7 @@ extend the font lock region."
     (modify-syntax-entry ?\n ">#" table)
     table))
 
+;;;###autoload
 (define-derived-mode hurl-mode text-mode "Hurl"
   "Enable hurl mode"
   (setq-local font-lock-defaults '((hurl-mode-keywords)))
