@@ -89,30 +89,12 @@ This function is called by `org-babel-execute-src-block'"
       (insert body))
     (org-babel-eval
      (format "hurl %s %s" hurl-vars (org-babel-process-file-name in-file))
-     "")
-    ))
-
-;; This function should be used to assign any variables in params in
-;; the context of the session environment.
-(defun org-babel-prep-session:hurl (session params)
-  "Prepare SESSION according to the header arguments specified in PARAMS."
-  )
+     "")))
 
 (defun org-babel-hurl-var-to-hurl (var)
   "Convert an elisp var into a string of hurl source code
 specifying a var of the same value."
   (format "%S" var))
-
-(defun org-babel-hurl-table-or-string (results)
-  "If the results look like a table, then convert them into an
-Emacs-lisp table, otherwise return the results as a string."
-  )
-
-(defun org-babel-hurl-initiate-session (&optional session)
-  "If there is not a current inferior-process-buffer in SESSION then create.
-Return the initialized session."
-  (unless (string= session "none")
-    ))
 
 (provide 'ob-hurl)
 ;;; ob-hurl.el ends here
