@@ -101,11 +101,15 @@ This function is called by `org-babel-execute-src-block'"
          ;; expand the body with `org-babel-expand-body:hurl'
          (full-body (org-babel-expand-body:hurl
                      body params processed-params))
-         (in-file (org-babel-temp-file "hurl" ".hurl")))
+         (in-file (org-babel-temp-file "hurl" ".hurl"))
+         (hurl-vars (cl-reduce
+                     (lambda (acc elem)
+                       (concat acc (format "--variable %s=%s" (car elem) (cdr elem)) " "))
+                     vars :initial-value "")))
     (with-temp-file in-file
-      (insert full-body))
+      (insert body))
     (org-babel-eval
-     (format "hurl %s" (org-babel-process-file-name in-file))
+     (format "hurl %s %s" hurl-vars (org-babel-process-file-name in-file))
      "")
     ;; actually execute the source-code block either in a session or
     ;; possibly by dropping it to a temporary file and evaluating the
