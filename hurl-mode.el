@@ -188,12 +188,24 @@ extend the font lock region."
   )
 
 ;; so we don't get auto ` pairing if smartparens mode exists
-(when (fboundp 'sp-local-pair)
-  (sp-local-pair 'hurl-mode "`" nil :actions nil))
+(eval-after-load 'smartparens-mode
+  (when (fboundp 'sp-local-pair)
+    (sp-local-pair 'hurl-mode "`" nil :actions nil)))
 
-(defun hurl-mode-send-request ()
-  "Simple thin wrapper over the cli command"
-  (interactive)
-  (async-shell-command (concat "hurl " (buffer-file-name))))
+(defun hurl-mode-send-request (arg)
+  "Simple thin wrapper which sends the contents of the current file to hurl.
+With one prefix arg, execute with the --test option.
+With two (or more) prefix args, prompt for arbitrary additional options to hurl command"
+  (interactive "P")
+  (let ((args (cond ((equal arg '(4)) "--test")
+                    ((equal arg '(16)) (read-string "additional cli options: "))
+                    (t ""))))
+    (async-shell-command (format "hurl %s %s" args (buffer-file-name)))))
+
+(setq hurl-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-c") 'hurl-mode-send-request)
+    map))
+
 
 (provide 'hurl-mode)
