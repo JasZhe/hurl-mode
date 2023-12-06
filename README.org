@@ -1,8 +1,22 @@
 * hurl-mode
-emacs major mode for [[https://hurl.dev/][hurl]]
+An Emacs major mode for [[https://hurl.dev/][hurl]]
 
-* TODO usage
-not much so far, just a simple wrapper: ~hurl-mode-send-request~ around the hurl cli command
+* Usage
+A simple wrapper for the cli command is provided via: ~hurl-mode-send-request~ with a shortcut of =C-c C-c=
 
-* Credits:
-Used a lot of code for the extend region function from [[https://github.com/nex3/haml-mode][haml-mode]]
+** org babel integration
+Simple org babel implementation that passes the src block vars into the --variable option for the cli command
+
+Simple example:
+#+begin_example
+,#+begin_src hurl :results output :var host="https://httpbin.org/post"
+POST {{host}}
+,#+end_src
+#+end_example
+
+* Acknowledgements
+Took a lot of inspiration for the extend region function from [[https://github.com/nex3/haml-mode][haml-mode]]
+
+Also found this example very useful for [[https://stackoverflow.com/questions/9452615/emacs-is-there-a-clear-example-of-multi-line-font-locking][multi line font locking]]
+
+Another good resource [[https://www.omarpolo.com/post/writing-a-major-mode.html][here]]
