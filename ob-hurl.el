@@ -1,15 +1,13 @@
-;;; ob-hurl.el --- Description -*- lexical-binding: t; -*-
+;;; ob-hurl.el --- Org babel integration for hurl -*- lexical-binding: t; -*-
 ;;
 ;; Copyright (C) 2023 Jason Zhen
 ;;
 ;; Author: Jason Zhen
 ;; Maintainer: Jason Zhen
 ;; Created: December 05, 2023
-;; Modified: December 05, 2023
 ;; Version: 0.0.1
-;; Keywords: abbrev bib c calendar comm convenience data docs emulations extensions faces files frames games hardware help hypermedia i18n internal languages lisp local maint mail matching mouse multimedia news outlines processes terminals tex tools unix vc wp
-;; Homepage: https://github.com/jasonzhen/ob-hurl
-;; Package-Requires: ((emacs "24.3"))
+;; Package-Requires: ((emacs "26.1"))
+;; URL: https://github.com/JasZhe/hurl-mode
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -29,11 +27,10 @@
 ;; along with GNU Emacs; see the file COPYING.  If not, write to the
 ;; Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor,
 ;; Boston, MA 02110-1301, USA.
-
+;;
 ;;; Commentary:
 ;; Very simple org babel integration for hurl mode
 ;; a lot taken from the ob-template
-
 
 ;;; Code:
 (require 'ob)
@@ -74,34 +71,15 @@
 ;;   returned
 ;; - value means that the value of the last statement in the
 ;;   source code block will be returned
-;;
-;; The most common first step in this function is the expansion of the
-;; PARAMS argument using `org-babel-process-params'.
-;;
-;; Please feel free to not implement options which aren't appropriate
-;; for your language (e.g. not all languages support interactive
-;; "session" evaluation).  Also you are free to define any new header
-;; arguments which you feel may be useful -- all header arguments
-;; specified by the user will be available in the PARAMS variable.
 ;;;###autoload
 (defun org-babel-execute:hurl (body params)
   "Execute a block of Hurl code with org-babel.
+Any variables assigned to the src block get passed into the cli command via the --variable option.
 This function is called by `org-babel-execute-src-block'"
   (message "executing Hurl source code block")
   (let* ((processed-params (org-babel-process-params params))
-         ;; set the session if the value of the session keyword is not the
-         ;; string `none'
-         (session (unless (string= (cdr (assq :session processed-params)) "none")
-                    (org-babel-hurl-initiate-session
-                     (cdr (assq :session processed-params)))))
          ;; variables assigned for use in the block
          (vars (org-babel--get-vars processed-params))
-         (result-params (assq :result-params processed-params))
-         ;; either OUTPUT or VALUE which should behave as described above
-         (result-type (assq :result-type processed-params))
-         ;; expand the body with `org-babel-expand-body:hurl'
-         (full-body (org-babel-expand-body:hurl
-                     body params processed-params))
          (in-file (org-babel-temp-file "hurl" ".hurl"))
          (hurl-vars (cl-reduce
                      (lambda (acc elem)
@@ -112,20 +90,6 @@ This function is called by `org-babel-execute-src-block'"
     (org-babel-eval
      (format "hurl %s %s" hurl-vars (org-babel-process-file-name in-file))
      "")
-    ;; actually execute the source-code block either in a session or
-    ;; possibly by dropping it to a temporary file and evaluating the
-    ;; file.
-    ;;
-    ;; for session based evaluation the functions defined in
-    ;; `org-babel-comint' will probably be helpful.
-    ;;
-    ;; for external evaluation the functions defined in
-    ;; `org-babel-eval' will probably be helpful.
-    ;;
-    ;; when forming a shell command, or a fragment of code in some
-    ;; other language, please preprocess any file names involved with
-    ;; the function `org-babel-process-file-name'. (See the way that
-    ;; function is used in the language files)
     ))
 
 ;; This function should be used to assign any variables in params in
