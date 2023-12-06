@@ -83,6 +83,7 @@
 ;; "session" evaluation).  Also you are free to define any new header
 ;; arguments which you feel may be useful -- all header arguments
 ;; specified by the user will be available in the PARAMS variable.
+;;;###autoload
 (defun org-babel-execute:hurl (body params)
   "Execute a block of Hurl code with org-babel.
 This function is called by `org-babel-execute-src-block'"
