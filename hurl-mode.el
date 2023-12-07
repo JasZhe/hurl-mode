@@ -117,7 +117,7 @@
     (let ((code-start (+ (match-beginning 0) 7)) 
           (code-end (- (match-end 0) 4)))
       (save-match-data
-        (ignore-errors (org-src-font-lock-fontify-block "xml" code-start code-end)))
+        (with-no-warnings (ignore-errors (org-src-font-lock-fontify-block "xml" code-start code-end))))
       (goto-char (match-end 0)))))
 
 (defun hurl-highlight-filter-json (limit)
@@ -126,7 +126,7 @@
     (let ((code-start (+ (match-beginning 0) 8))
           (code-end (- (match-end 0) 4)))
       (save-match-data
-        (ignore-errors (org-src-font-lock-fontify-block "json" code-start code-end)))
+        (with-no-warnings (ignore-errors (org-src-font-lock-fontify-block "json" code-start code-end))))
       (goto-char (match-end 0)))))
 
 (defun hurl-highlight-filter-graphql (limit)
@@ -135,7 +135,7 @@
     (let ((code-start (+ (match-beginning 0) 11))
           (code-end (- (match-end 0) 4)))
       (save-match-data
-        (ignore-errors (org-src-font-lock-fontify-block "graphql" code-start code-end)))
+        (with-no-warnings (ignore-errors (org-src-font-lock-fontify-block "graphql" code-start code-end))))
       (goto-char (match-end 0)))))
 
 ;; stole this extend region stuff from haml mode with
