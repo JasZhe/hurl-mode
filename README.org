@@ -14,6 +14,26 @@ POST {{host}}
 ,#+end_src
 #+end_example
 
+* Installation
+With emacs 29 we have built in package-vc-install and use-package now
+#+begin_src elisp
+  (package-vc-install "https://github.com/JasZhe/hurl-mode")
+  (use-package hurl-mode :mode "\\.hurl\\'")
+#+end_src
+
+With straight:
+#+begin_src elisp
+  (straight-use-package
+   '(hurl-mode :type git :host github :repo "jaszhe/hurl-mode"))
+#+end_src
+
+* Contributing
+My use case for hurl is actually pretty simple. I just use it to send some basic requests with some auth capturing mixed in. I don't really make too much use of the test/assertion facilities. So if you do have some more complicated use cases that aren't covered here, feel free to drop an issue.
+
+I mostly wrote this for two reasons, one to have some basic font locking and stuff for hurl (and also org babel integration where I find it most useful actually) and to learn a bit more elisp.
+
+I won't stop people from making PR's but given the above, I would actually like to tackle any issues myself first :) if you would bear with my inexperience. Pointers and advice in the issues would also be appreciated for the same reason.
+
 * Acknowledgements
 Took a lot of inspiration for the extend region function from [[https://github.com/nex3/haml-mode][haml-mode]]
 
