@@ -167,177 +167,142 @@
 
 (defconst hurl-mode--capture-regexp
   (rx-to-string `(: bol
-		    ;; variable name
-		    (group (* (or alpha "_" "-")) ":")
-		    (* blank)
-		    ;; query
-		    (group (or (or ,@hurl-mode--no-arg-queries)
-			       (: (or ,@hurl-mode--arg-queries))
-			       ))
-		    (* blank)
-		    ;; optional query param
-		    (? (group (or (: "\"" (* (or (not "\"") "\\\"") ) "\"")
-				  (or ,@hurl-mode--certificate-attrs))))
-		    (* blank)
-		    ;; optional filter
-		    (* (: (group (or (or ,@hurl-mode--no-arg-filters)
-				     (or ,@hurl-mode--single-int-arg-filters)
-				     (or ,@hurl-mode--single-string-arg-filters)
-				     (or ,@hurl-mode--double-string-arg-filters)))
-			  (* blank)
-			  ;; optional filter params, single or double string args, single int
-			  (? (group (* digit)))
-			  (? (group (: "\"" (* alnum) "\"")))
-			  (* blank)
-			  (? (group (: "\"" (* alnum) "\""))))))))
+                    ;; variable name
+                    (group (* (or alpha "_" "-")) ":")
+                    (* blank)
+                    ;; query
+                    (group (or (or ,@hurl-mode--no-arg-queries)
+                               (: (or ,@hurl-mode--arg-queries))
+                               ))
+                    (* blank)
+                    ;; optional query param
+                    (? (group (or (: "\"" (* (or (not "\"") "\\\"") ) "\"")
+                                  (or ,@hurl-mode--certificate-attrs))))
+                    (* blank)
+                    ;; optional filter
+                    (* (: (group (or (or ,@hurl-mode--no-arg-filters)
+                                     (or ,@hurl-mode--single-int-arg-filters)
+                                     (or ,@hurl-mode--single-string-arg-filters)
+                                     (or ,@hurl-mode--double-string-arg-filters)))
+                          (* blank)
+                          ;; optional filter params, single or double string args, single int
+                          (? (group (* digit)))
+                          (? (group (: "\"" (* alnum) "\"")))
+                          (* blank)
+                          (? (group (: "\"" (* alnum) "\""))))))))
 
 (defconst hurl-mode--assert-regexp
   (rx-to-string `(: bol
-		    ;; query
-		    (group (or (or ,@hurl-mode--no-arg-queries)
-			       (or ,@hurl-mode--arg-queries)))
-		    (* blank)
-		    ;; optional query arg
-		    (? (group (or (: "\"" (* (or (not "\"") "\\\"") ) "\"")
-				  ,@hurl-mode--certificate-attrs)))
-		    (* blank)
-		    ;; optional filter
-		    (* (: (group (or ,@hurl-mode--no-arg-filters
-				     ,@hurl-mode--single-int-arg-filters
-				     ,@hurl-mode--single-string-arg-filters
-				     ,@hurl-mode--double-string-arg-filters))
-			  (* blank)
-			  ;; optional filter args, single int, single or double string
-			  (? (group (* digit)))
-			  (? (group (: "\"" (* (category ascii)) "\"")))
-			  (* blank)
-			  (? (group (: "\"" (* (category ascii)) "\"")))))
-		    ;; predicate
-		    (group (or ,@hurl-mode--predicates))
-		    ;; optional predicate arg
-		    (? (group (* (category ascii))))
-		    )))
+                    ;; query
+                    (group (or (or ,@hurl-mode--no-arg-queries)
+                               (or ,@hurl-mode--arg-queries)))
+                    (* blank)
+                    ;; optional query arg
+                    (? (group (or (: "\"" (* (or (not "\"") "\\\"") ) "\"")
+                                  ,@hurl-mode--certificate-attrs)))
+                    (* blank)
+                    ;; optional filter
+                    (* (: (group (or ,@hurl-mode--no-arg-filters
+                                     ,@hurl-mode--single-int-arg-filters
+                                     ,@hurl-mode--single-string-arg-filters
+                                     ,@hurl-mode--double-string-arg-filters))
+                          (* blank)
+                          ;; optional filter args, single int, single or double string
+                          (? (group (* digit)))
+                          (? (group (: "\"" (* (category ascii)) "\"")))
+                          (* blank)
+                          (? (group (: "\"" (* (category ascii)) "\"")))))
+                    ;; predicate
+                    (group (or ,@hurl-mode--predicates))
+                    ;; optional predicate arg
+                    (? (group (* (category ascii))))
+                    )))
 
 
 ;; match ``` then anything except for ` then another ``` and end of line
 ;; simple but seems to work really well
 (defconst hurl-mode-body-regexp "```[^`]*\n```$")
 
-
-
-;; removed the last few lines that cause a org-element-at-point warning
-;; ignore-errors didn't stop the warnings from popping up so this worked instead
-(defun hurl--org-src-font-lock-fontify-block (lang start end)
-  "Fontify code block between START and END using LANG's syntax.
-This function is called by Emacs' automatic fontification, as long
-as `org-src-fontify-natively' is non-nil."
-  (let ((modified (buffer-modified-p)) native-tab-width)
-    (remove-text-properties start end '(face nil))
+(defun hurl-fontify-as-major-mode-mode (lang text)
+  (with-temp-buffer
+    (erase-buffer)
+    (insert text)
     (let ((lang-mode (org-src-get-lang-mode lang)))
       (when (fboundp lang-mode)
-        (let ((string (buffer-substring-no-properties start end))
-	      (org-buffer (current-buffer)))
-	  (with-current-buffer
-	      (get-buffer-create
-	       (format " *org-src-fontification:%s*" lang-mode))
-	    (let ((inhibit-modification-hooks nil))
-	      (erase-buffer)
-	      ;; Add string and a final space to ensure property change.
-	      (insert string " "))
-	    (unless (eq major-mode lang-mode) (funcall lang-mode))
-            (setq native-tab-width tab-width)
-            (font-lock-ensure)
-	    (let ((pos (point-min)) next)
-	      (while (setq next (next-property-change pos))
-	        ;; Handle additional properties from font-lock, so as to
-	        ;; preserve, e.g., composition.
-                ;; FIXME: We copy 'font-lock-face property explicitly because
-                ;; `font-lock-mode' is not enabled in the buffers starting from
-                ;; space and the remapping between 'font-lock-face and 'face
-                ;; text properties may thus not be set.  See commit
-                ;; 453d634bc.
-	        (dolist (prop (append '(font-lock-face face) font-lock-extra-managed-props))
-		  (let ((new-prop (get-text-property pos prop)))
-                    (when new-prop
-                      (if (not (eq prop 'invisible))
-		          (put-text-property
-		           (+ start (1- pos)) (1- (+ start next)) prop new-prop
-		           org-buffer)
-                        ;; Special case.  `invisible' text property may
-                        ;; clash with Org folding.  Do not assign
-                        ;; `invisible' text property directly.  Use
-                        ;; property alias instead.
-                        (let ((invisibility-spec
-                               (or
-                                ;; ATOM spec.
-                                (and (memq new-prop buffer-invisibility-spec)
-                                     new-prop)
-                                ;; (ATOM . ELLIPSIS) spec.
-                                (assq new-prop buffer-invisibility-spec))))
-                          (with-current-buffer org-buffer
-                            ;; Add new property alias.
-                            (unless (memq 'org-src-invisible
-                                          (cdr (assq 'invisible char-property-alias-alist)))
-                              (setq-local
-                               char-property-alias-alist
-                               (cons (cons 'invisible
-			                   (nconc (cdr (assq 'invisible char-property-alias-alist))
-                                                  '(org-src-invisible)))
-		                     (remove (assq 'invisible char-property-alias-alist)
-			                     char-property-alias-alist))))
-                            ;; Carry over the invisibility spec, unless
-                            ;; already present.  Note that there might
-                            ;; be conflicting invisibility specs from
-                            ;; different major modes.  We cannot do much
-                            ;; about this then.
-                            (when invisibility-spec
-                              (add-to-invisibility-spec invisibility-spec))
-                            (put-text-property
-		             (+ start (1- pos)) (1- (+ start next))
-                             'org-src-invisible new-prop
-		             org-buffer)))))))
-	        (setq pos next)))
-            (set-buffer-modified-p nil)))))
-    ;; Add Org faces.
-    (let ((src-face (nth 1 (assoc-string lang org-src-block-faces t))))
-      (when (or (facep src-face) (listp src-face))
-        (font-lock-append-text-property start end 'face src-face))
-      (font-lock-append-text-property start end 'face 'org-block))
-    (add-text-properties
-     start end
-     '(font-lock-fontified t fontified t font-lock-multiline t))
-    ))
+        (delay-mode-hooks (funcall lang-mode))
+        (font-lock-default-function lang-mode)
+        (font-lock-default-fontify-region (point-min)
+                                          (point-max)
+                                          nil)
+        (buffer-string)))))
 
 
+(defun hurl-fontify-using-faces (text)
+  (let ((pos 0))
+    (while (setq next (next-single-property-change pos 'face text))
+      (put-text-property pos next 'font-lock-face (get-text-property pos 'face text) text)
+      (setq pos next))
+    (add-text-properties 0 (length text) '(fontified t) text)
+    text))
 
-;; hacky bit to just abuse the org src block fontification for our purposes
-;; TODO: could maybe simplify these down into a single function instead
-(defun hurl-highlight-filter-xml (limit)
-  "Highlight any xml region found in the text up to LIMIT."
-  (when (re-search-forward "```xml[^`]*```$" limit t)
-    (let ((code-start (+ (match-beginning 0) 7)) 
-          (code-end (- (match-end 0) 4)))
-      (save-match-data
-        (hurl--org-src-font-lock-fontify-block "xml" code-start code-end))
-      (goto-char (match-end 0)))))
+(defun hurl-fontify-src-blocks (limit)
+  (when (re-search-forward
+         (rx bol (group "```"
+                        (group (one-or-more (any "a-zA-Z")))
+                        (group (group (zero-or-more (not (any " \t\n"))))
+                               (zero-or-more (any " \t"))
+                               (group (zero-or-more any)))))
+         (buffer-size) t)
+    (let ((beg (match-beginning 0))
+          (end-of-beginline (match-end 0))
+          ;; Including \n at end of #+begin line will include \n
+          ;; after the end of block content.
+          (block-start (match-end 0))
+          (block-end nil)
+          (lang (match-string 2))       ; The language, if it is a source block.
+          (bol-after-beginline (line-beginning-position 2))
+          beg-of-endline end-of-endline nl-before-endline quoting block-type)
+      (re-search-forward
+       (rx-to-string `(group bol (or (seq (one-or-more "*") space)
+                                     (seq bol "```" eol)))))
+      (setq block-end (match-beginning 0))
+      (setq end-of-endline (match-end 0))
+      (message "beg: %s endofbeg: %s start: %s end: %s endofend: %s lang %s after-begin: %s"
+               beg end-of-beginline block-start block-end end-of-endline lang bol-after-beginline)
 
-(defun hurl-highlight-filter-json (limit)
-  "Highlight any json region found in the text up to LIMIT."
-  (when (re-search-forward "```json[^`]*```$" limit t)
-    (let ((code-start (+ (match-beginning 0) 8))
-          (code-end (- (match-end 0) 4)))
-      (save-match-data
-        (hurl--org-src-font-lock-fontify-block "json" code-start code-end))
-      (goto-char (match-end 0)))))
 
-(defun hurl-highlight-filter-graphql (limit)
-  "Highlight any graphql region found in the text up to LIMIT."
-  (when (and (fboundp 'graphql-mode) (re-search-forward "```graphql[^`]*```$" limit t))
-    (let ((code-start (+ (match-beginning 0) 11))
-          (code-end (- (match-end 0) 4)))
-      (save-match-data
-        (hurl--org-src-font-lock-fontify-block "graphql" code-start code-end))
-      (goto-char (match-end 0)))))
+      (add-text-properties
+       beg end-of-endline '(font-lock-fontified t font-lock-multiline t blah t))
+
+
+      (let ((string (buffer-substring-no-properties block-start block-end))
+            (lang-mode (org-src-get-lang-mode lang))
+            (my-buffer (current-buffer)))
+        (with-current-buffer (get-buffer-create "hurl fontify buffer")
+          (erase-buffer)
+          (insert string " ")
+          (funcall lang-mode)
+          (font-lock-ensure)
+          (let ((pos (point-min)) next)
+            (while (setq next (next-property-change pos))
+              (dolist (prop (append '(font-lock-face face) font-lock-extra-managed-props))
+                (let ((new-prop (get-text-property pos prop)))
+                  (message "prop %s newprop %s start %s end %s" prop new-prop (+ block-start (1- pos)) (1- (+ block-start next)))
+                  (when (not (eq prop 'invisible))
+                    (put-text-property (+ block-start (1- pos)) (1- (+ block-start next)) prop new-prop my-buffer)))
+                )
+              (setq pos next)
+              )
+            )
+          )
+        )
+      (add-text-properties
+       block-start block-end
+       '(font-lock-fontified t fontified t font-lock-multiline t))
+      ))
+  )
+
+
 
 ;; stole this extend region stuff from haml mode with
 ;; a few modifications to make it work for our use case
@@ -392,34 +357,32 @@ extend the font lock region."
    (font-lock-extend-region-multiline)))
 
 
+
 (defconst hurl-mode-keywords
   `((,hurl-mode--http-method-regexp (1 'hurl-mode-method-face)
-				    (2 'hurl-mode-url-face))
+     (2 'hurl-mode-url-face))
     (,hurl-mode--expected-response-regexp (1 'hurl-mode-method-face)
-					  (2 'hurl-mode-url-face))
+                                          (2 'hurl-mode-url-face))
     (,hurl-mode--header-regexp (1 'hurl-mode-header-names-face)
-			       (2 'hurl-mode-header-value-face))
+                               (2 'hurl-mode-header-value-face))
     (,hurl-mode--assert-regexp (1 'hurl-mode-query-face)
-			       (2 'hurl-mode-query-arg-face)
-			       (3 'hurl-mode-filter-face)
-			       (4 'hurl-mode-filter-arg-face)
-			       (5 'hurl-mode-filter-arg-face)
-			       (6 'hurl-mode-filter-arg-face)
-			       (7 'hurl-mode-pred-face)
-			       (8 'hurl-mode-pred-arg-face)
-			       )
+                               (2 'hurl-mode-query-arg-face)
+                               (3 'hurl-mode-filter-face)
+                               (4 'hurl-mode-filter-arg-face)
+                               (5 'hurl-mode-filter-arg-face)
+                               (6 'hurl-mode-filter-arg-face)
+                               (7 'hurl-mode-pred-face)
+                               (8 'hurl-mode-pred-arg-face)
+                               )
     (,hurl-mode--capture-regexp (1  'hurl-mode-variable-face)
-				(2 'hurl-mode-query-face)
-				(3 'hurl-mode-query-arg-face)
-				(4 'hurl-mode-filter-face)
-				(5 'hurl-mode-filter-arg-face) ;; int arg
-				(6 'hurl-mode-filter-arg-face) ;; string1
-				(7 'hurl-mode-filter-arg-face) ;; string2
-				)
-    (hurl-highlight-filter-xml)
-    (hurl-highlight-filter-json)
-    (hurl-highlight-filter-graphql)
-    (,hurl-mode-body-regexp (0 'hurl-mode-body-face))
+                                (2 'hurl-mode-query-face)
+                                (3 'hurl-mode-query-arg-face)
+                                (4 'hurl-mode-filter-face)
+                                (5 'hurl-mode-filter-arg-face) ;; int arg
+                                (6 'hurl-mode-filter-arg-face) ;; string1
+                                (7 'hurl-mode-filter-arg-face) ;; string2
+                                )
+    (hurl-fontify-src-blocks)
     (,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))))
 
 (defconst hurl-mode-syntax-table
@@ -428,14 +391,42 @@ extend the font lock region."
     (modify-syntax-entry ?\n ">#" table)
     table))
 
+(defun hurl-fontify-extend-region (beg end _)
+  (let ((end (if (progn (goto-char end) (looking-at-p "^```$"))
+                 (1+ end) end))
+        (begin-re (rx-to-string `(seq bol "```" (+ alpha) eol)))
+        (end-re (rx-to-string `(seq bol "```" eol)))
+        (extend
+         (lambda (r1 r2 dir)
+           (let ((re (replace-regexp-in-string
+                      "```" r1
+                      (replace-regexp-in-string
+                       "[][]" r2
+                       (match-string-no-properties 0)))))
+             (re-search-forward (regexp-quote re) nil t dir)))))
+    (goto-char beg)
+    (back-to-indentation)
+    (save-match-data
+      (cond ((looking-at end-re)
+             (cons (or (re-search-forward begin-re nil t -1) beg) end))
+            ((looking-at begin-re)
+             (cons beg (or (re-search-forward end-re nil t 1) end)))
+            (t (cons beg end))
+            )
+      )
+    )
+)
+
 ;;;###autoload
 (define-derived-mode hurl-mode text-mode "Hurl"
   "Enable hurl mode"
-  (setq-local font-lock-defaults '((hurl-mode-keywords)))
+  (setq-local font-lock-defaults '(hurl-mode-keywords))
   (setq-local font-lock-multiline t)
-  (setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual))
+  ;;(setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual))
+  (setq-local font-lock-extend-after-change-region-function #'hurl-fontify-extend-region)
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
+  ;;(kill-local-variable 'font-lock-keywords)
   )
 
 ;; so we don't get auto ` pairing if smartparens mode exists
