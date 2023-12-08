@@ -32,6 +32,8 @@
 ;; simple major mode for editing hurl files
 
 ;;; Code:
+
+;; this is just for org-src-get-lang-mode
 (require 'org-src)
 
 (eval-when-compile
@@ -219,143 +221,59 @@
                     )))
 
 
-;; match ``` then anything except for ` then another ``` and end of line
-;; simple but seems to work really well
-(defconst hurl-mode-body-regexp "```[^`]*\n```$")
-
-(defun hurl-fontify-as-major-mode-mode (lang text)
-  (with-temp-buffer
-    (erase-buffer)
-    (insert text)
-    (let ((lang-mode (org-src-get-lang-mode lang)))
-      (when (fboundp lang-mode)
-        (delay-mode-hooks (funcall lang-mode))
-        (font-lock-default-function lang-mode)
-        (font-lock-default-fontify-region (point-min)
-                                          (point-max)
-                                          nil)
-        (buffer-string)))))
-
-
-(defun hurl-fontify-using-faces (text)
-  (let ((pos 0))
-    (while (setq next (next-single-property-change pos 'face text))
-      (put-text-property pos next 'font-lock-face (get-text-property pos 'face text) text)
-      (setq pos next))
-    (add-text-properties 0 (length text) '(fontified t) text)
-    text))
-
 (defun hurl-fontify-src-blocks (limit)
+  "Fontifies body blocks for detected languages.
+Essentially creates a temporary buffer with the specified major mode and inserts the request body text into it. Then we can copy the font properties from that temporary buffer to our real hurl buffer.
+
+This is basically a simplified version of the bomination of org-fontify-meta-lines-and-blocks-1 and org-src-font-lock-fontify-block
+since we don't need to care about the other block types in org."
   (when (re-search-forward
          (rx bol (group "```"
                         (group (one-or-more (any "a-zA-Z")))
                         (group (group (zero-or-more (not (any " \t\n"))))
                                (zero-or-more (any " \t"))
                                (group (zero-or-more any)))))
-         (buffer-size) t)
+         limit t)
     (let ((beg (match-beginning 0))
           (end-of-beginline (match-end 0))
-          ;; Including \n at end of #+begin line will include \n
-          ;; after the end of block content.
           (block-start (match-end 0))
           (block-end nil)
-          (lang (match-string 2))       ; The language, if it is a source block.
-          (bol-after-beginline (line-beginning-position 2))
-          beg-of-endline end-of-endline nl-before-endline quoting block-type)
-      (re-search-forward
-       (rx-to-string `(group bol (or (seq (one-or-more "*") space)
-                                     (seq bol "```" eol)))))
-      (setq block-end (match-beginning 0))
-      (setq end-of-endline (match-end 0))
-      (message "beg: %s endofbeg: %s start: %s end: %s endofend: %s lang %s after-begin: %s"
-               beg end-of-beginline block-start block-end end-of-endline lang bol-after-beginline)
+          (lang (match-string 2))
+          end-of-endline)
+      (when (re-search-forward
+             (rx-to-string `(group bol (or (seq (one-or-more "*") space)
+                                           (seq bol "```" (zero-or-more any))))))
+        (setq block-end (match-beginning 0))
+        (setq end-of-endline (match-end 0))
+        (add-text-properties
+         beg end-of-endline '(font-lock-fontified t font-lock-multiline t))
 
-
-      (add-text-properties
-       beg end-of-endline '(font-lock-fontified t font-lock-multiline t blah t))
-
-
-      (let ((string (buffer-substring-no-properties block-start block-end))
-            (lang-mode (org-src-get-lang-mode lang))
-            (my-buffer (current-buffer)))
-        (with-current-buffer (get-buffer-create "hurl fontify buffer")
-          (erase-buffer)
-          (insert string " ")
-          (funcall lang-mode)
-          (font-lock-ensure)
-          (let ((pos (point-min)) next)
-            (while (setq next (next-property-change pos))
-              (dolist (prop (append '(font-lock-face face) font-lock-extra-managed-props))
-                (let ((new-prop (get-text-property pos prop)))
-                  (message "prop %s newprop %s start %s end %s" prop new-prop (+ block-start (1- pos)) (1- (+ block-start next)))
-                  (when (not (eq prop 'invisible))
-                    (put-text-property (+ block-start (1- pos)) (1- (+ block-start next)) prop new-prop my-buffer)))
-                )
-              (setq pos next)
-              )
-            )
-          )
-        )
-      (add-text-properties
-       block-start block-end
-       '(font-lock-fontified t fontified t font-lock-multiline t))
-      ))
-  )
-
-
-
-;; stole this extend region stuff from haml mode with
-;; a few modifications to make it work for our use case
-(defun hurl-find-containing-block (re)
-  "If point is inside a block matching RE, return (start . end) for the block."
-  (save-excursion
-
-    (let ((pos (point))
-          start end)
-      (beginning-of-line)
-      (when (and
-             (or (looking-at re)
-                 (when (re-search-backward re nil t)
-                   (looking-at re)))
-             (let ((m-end (+ 1 (match-end 0))))
-               (<= pos m-end)))
-        (setq start (match-beginning 0)
-              end (match-end 0)))
-      (when (or start end)
-        (cons start end)))))
-
-(defun hurl-maybe-extend-region (extender)
-  "Maybe extend the font lock region using EXTENDER.
-With point at the beginning of the font lock region, EXTENDER is called.
-If it returns a (START . END) pair, those positions are used to possibly
-extend the font lock region."
-  (let ((old-beg font-lock-beg)
-        (old-end font-lock-end))
-    (save-excursion
-      (goto-char font-lock-beg)
-      (let ((new-bounds (funcall extender)))
-        (when new-bounds
-          (setq font-lock-beg (min font-lock-beg (car new-bounds))
-                font-lock-end (+ 0 (max font-lock-end (cdr new-bounds)))))))
-    (or (/= old-beg font-lock-beg)
-        (/= old-end font-lock-end))))
-
-(defun hurl-extend-region-to-containing-block (re)
-  "Extend the font-lock region to the smallest containing block matching RE."
-  (hurl-maybe-extend-region
-   (lambda ()
-     (hurl-find-containing-block re))))
-
-(defun hurl-extend-region-body ()
-  "Extend the font-lock region to an enclosing filter."
-  (hurl-extend-region-to-containing-block hurl-mode-body-regexp))
-
-(defun hurl-extend-region-contextual ()
-  (or
-   (hurl-extend-region-body)
-   (font-lock-extend-region-wholelines)
-   (font-lock-extend-region-multiline)))
-
+        ;; this save match data is really important or else we only fontify a single block
+        (save-match-data
+          (remove-text-properties block-start block-end '(face nil))
+          (let ((string (buffer-substring-no-properties block-start block-end))
+                (lang-mode (org-src-get-lang-mode lang))
+                (my-buffer (current-buffer)))
+            (when (fboundp lang-mode)
+              ;; for debugging purposes having a real (hidden) buffer to see what's being fontified is nice (org does this)
+              ;; but we can easily switch to just with-temp-buffer if we no longer want this
+              (with-current-buffer (get-buffer-create (format " *hurl fontify buffer:%s*" lang-mode))
+                (erase-buffer)
+                (insert string " ")
+                (funcall lang-mode)
+                (font-lock-ensure)
+                (let ((pos (point-min)) next)
+                  (while (setq next (next-property-change pos))
+                    (dolist (prop (append '(font-lock-face face) font-lock-extra-managed-props))
+                      (let ((new-prop (get-text-property pos prop)))
+                        (when (not (eq prop 'invisible))
+                          (put-text-property (+ block-start (1- pos)) (1- (+ block-start next)) prop new-prop my-buffer)))
+                      )
+                    (setq pos next))
+                  )))))
+        ;; this t is really important
+        ;; see: https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fontification.html
+        t))))
 
 
 (defconst hurl-mode-keywords
@@ -391,42 +309,13 @@ extend the font lock region."
     (modify-syntax-entry ?\n ">#" table)
     table))
 
-(defun hurl-fontify-extend-region (beg end _)
-  (let ((end (if (progn (goto-char end) (looking-at-p "^```$"))
-                 (1+ end) end))
-        (begin-re (rx-to-string `(seq bol "```" (+ alpha) eol)))
-        (end-re (rx-to-string `(seq bol "```" eol)))
-        (extend
-         (lambda (r1 r2 dir)
-           (let ((re (replace-regexp-in-string
-                      "```" r1
-                      (replace-regexp-in-string
-                       "[][]" r2
-                       (match-string-no-properties 0)))))
-             (re-search-forward (regexp-quote re) nil t dir)))))
-    (goto-char beg)
-    (back-to-indentation)
-    (save-match-data
-      (cond ((looking-at end-re)
-             (cons (or (re-search-forward begin-re nil t -1) beg) end))
-            ((looking-at begin-re)
-             (cons beg (or (re-search-forward end-re nil t 1) end)))
-            (t (cons beg end))
-            )
-      )
-    )
-)
-
 ;;;###autoload
 (define-derived-mode hurl-mode text-mode "Hurl"
   "Enable hurl mode"
-  (setq-local font-lock-defaults '(hurl-mode-keywords))
+  (setq-local font-lock-defaults '(hurl-mode-keywords t nil nil backward-paragraph))
   (setq-local font-lock-multiline t)
-  ;;(setq-local font-lock-extend-region-functions '(hurl-extend-region-contextual))
-  (setq-local font-lock-extend-after-change-region-function #'hurl-fontify-extend-region)
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
-  ;;(kill-local-variable 'font-lock-keywords)
   )
 
 ;; so we don't get auto ` pairing if smartparens mode exists
