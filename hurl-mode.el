@@ -148,7 +148,7 @@
                   (group (* any)))))
 
 (defconst hurl-mode--arg-queries
-  '("header" "certificate" "cookie" "xpath" "jsonpath" "regex" "variable"))
+  '("header" "cookie" "xpath" "jsonpath" "regex" "variable"))
 
 (defconst hurl-mode--no-arg-queries
   '("status" "url" "body" "duration" "sha256" "md5" "bytes"))
@@ -284,19 +284,32 @@
   (save-excursion
     (hurl-fontify-single-int-filters))
   (save-excursion
-    (hurl-fontify-no-arg-filters))
-  )
+    (hurl-fontify-no-arg-filters)))
 
 (defun hurl-fontify-asserts (limit)
-  (cond ((setq next (re-search-forward
-                     (rx-to-string `(: bol (group (or ,@hurl-mode--no-arg-queries))))
-                     limit t))
-         (setq pos (match-beginning 0))
-         (message "1: limit %s pos %s next %s" limit (match-beginning 0) next)
-         (add-text-properties pos next '(font-lock-fontified t font-lock-multiline t face hurl-mode-query-face))
-         (hurl-fontify-filters)
-         t))
-  )
+  (save-match-data
+    (or
+     (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--no-arg-queries)))) limit t))
+       (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
+       (hurl-fontify-filters)
+       t)
+     (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--arg-queries)))) limit t))
+       (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
+       (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+         (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
+           (add-text-properties (match-beginning 0) arg-pos
+                                '(font-lock-fontified t face font-lock-string-face))))
+       (hurl-fontify-filters)
+       t)
+     (when (setq next (re-search-forward "certificate" limit t))
+       (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
+       (let ((filter-arg-rx (rx-to-string `(group (or ,@hurl-mode--certificate-attrs)))))
+         (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
+           (add-text-properties (match-beginning 0) arg-pos
+                                '(font-lock-fontified t face font-lock-string-face))))
+       (hurl-fontify-filters)
+       t)
+     )))
 
 (defun hurl-fontify-src-blocks (limit)
   "Fontifies body blocks for detected languages.
