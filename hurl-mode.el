@@ -221,6 +221,83 @@
                     )))
 
 
+(defun hurl-fontify-single-string-filters ()
+  "Loop through a line for each occurrence of filter + string arg"
+  (while (setq next (and (not (eq (point) (save-excursion (end-of-line) (point))))
+                         (re-search-forward
+                          (rx-to-string `(group (or ,@hurl-mode--single-string-arg-filters)))
+                          (save-excursion (end-of-line) (point)) t)))
+    (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))
+    (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+      (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
+        (add-text-properties (match-beginning 0) arg-pos
+                             '(font-lock-fontified t face font-lock-string-face))))))
+
+(defun hurl-fontify-double-string-filters ()
+  "Loop through a line for each occurrence of filter + string arg + string arg"
+  (while (setq next (and (not (eq (point) (save-excursion (end-of-line) (point))))
+                         (re-search-forward
+                          (rx-to-string `(group (or ,@hurl-mode--double-string-arg-filters)))
+                          (save-excursion (end-of-line) (point)) t)))
+    (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))
+    (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+      (when-let (arg-pos-1
+                 (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
+        (add-text-properties (match-beginning 0) arg-pos-1
+                             '(font-lock-fontified t face font-lock-regexp-face))
+        (when-let (arg-pos-2
+                   (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
+          (add-text-properties (match-beginning 0) arg-pos-2
+                               '(font-lock-fontified t face font-lock-string-face)))))))
+
+
+(defun hurl-fontify-single-int-filters ()
+  "Loop through a line for each occurrence of filter + int arg"
+  (while (setq next (and (not (eq (point) (save-excursion (end-of-line) (point))))
+                         (re-search-forward
+                          (rx-to-string `(group (or ,@hurl-mode--single-int-arg-filters)))
+                          (save-excursion (end-of-line) (point)) t)))
+    (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))
+    (let ((filter-arg-rx (rx-to-string `(+ digit))))
+      (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
+        (add-text-properties (match-beginning 0) arg-pos
+                             '(font-lock-fontified t face font-lock-constant-face))))))
+
+
+(defun hurl-fontify-no-arg-filters ()
+  "Loop through a line for each occurrence of no arg filter"
+  (while (setq next (and (not (eq (point) (save-excursion (end-of-line) (point))))
+                         (re-search-forward
+                          (rx-to-string `(group (or ,@hurl-mode--no-arg-filters)))
+                          (save-excursion (end-of-line) (point)) t)))
+    (message "2: pos %s next %s substr: %s" (match-beginning 0) next
+             (buffer-substring-no-properties (match-beginning 0) next))
+    (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))))
+
+
+(defun hurl-fontify-filters ()
+  ;; need the save excursions to restart fontification from the beginning of the line for each type of filter
+  (save-excursion
+    (hurl-fontify-single-string-filters))
+  (save-excursion
+    (hurl-fontify-double-string-filters))
+  (save-excursion
+    (hurl-fontify-single-int-filters))
+  (save-excursion
+    (hurl-fontify-no-arg-filters))
+  )
+
+(defun hurl-fontify-asserts (limit)
+  (cond ((setq next (re-search-forward
+                     (rx-to-string `(: bol (group (or ,@hurl-mode--no-arg-queries))))
+                     limit t))
+         (setq pos (match-beginning 0))
+         (message "1: limit %s pos %s next %s" limit (match-beginning 0) next)
+         (add-text-properties pos next '(font-lock-fontified t font-lock-multiline t face hurl-mode-query-face))
+         (hurl-fontify-filters)
+         t))
+  )
+
 (defun hurl-fontify-src-blocks (limit)
   "Fontifies body blocks for detected languages.
 Essentially creates a temporary buffer with the specified major mode and inserts the request body text into it. Then we can copy the font properties from that temporary buffer to our real hurl buffer.
@@ -283,23 +360,7 @@ since we don't need to care about the other block types in org."
                                           (2 'hurl-mode-url-face))
     (,hurl-mode--header-regexp (1 'hurl-mode-header-names-face)
                                (2 'hurl-mode-header-value-face))
-    (,hurl-mode--assert-regexp (1 'hurl-mode-query-face)
-                               (2 'hurl-mode-query-arg-face)
-                               (3 'hurl-mode-filter-face)
-                               (4 'hurl-mode-filter-arg-face)
-                               (5 'hurl-mode-filter-arg-face)
-                               (6 'hurl-mode-filter-arg-face)
-                               (7 'hurl-mode-pred-face)
-                               (8 'hurl-mode-pred-arg-face)
-                               )
-    (,hurl-mode--capture-regexp (1  'hurl-mode-variable-face)
-                                (2 'hurl-mode-query-face)
-                                (3 'hurl-mode-query-arg-face)
-                                (4 'hurl-mode-filter-face)
-                                (5 'hurl-mode-filter-arg-face) ;; int arg
-                                (6 'hurl-mode-filter-arg-face) ;; string1
-                                (7 'hurl-mode-filter-arg-face) ;; string2
-                                )
+    (hurl-fontify-asserts)
     (hurl-fontify-src-blocks)
     (,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))))
 
