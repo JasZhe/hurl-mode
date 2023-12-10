@@ -128,7 +128,6 @@
                   (group (or ,@hurl-mode--http-method-keywords))
                   (group (+ not-newline)))))
 
-
 (defconst hurl-mode--section-header-keywords
   '("[QueryStringParams]" "[FormParams]" "[MultipartFormData]" "[BasicAuth]" "[Cookies]" "[Asserts]" "[Captures]" "[Options]"))
 (defconst hurl-mode--section-header-regexp
@@ -166,32 +165,6 @@
 (defconst hurl-mode--single-int-arg-filters '("nth"))
 (defconst hurl-mode--single-string-arg-filters '("regex" "split" "xpath"))
 (defconst hurl-mode--double-string-arg-filters `("replace"))
-
-(defconst hurl-mode--capture-regexp
-  (rx-to-string `(: bol
-                    ;; variable name
-                    (group (* (or alpha "_" "-")) ":")
-                    (* blank)
-                    ;; query
-                    (group (or (or ,@hurl-mode--no-arg-queries)
-                               (: (or ,@hurl-mode--arg-queries))
-                               ))
-                    (* blank)
-                    ;; optional query param
-                    (? (group (or (: "\"" (* (or (not "\"") "\\\"") ) "\"")
-                                  (or ,@hurl-mode--certificate-attrs))))
-                    (* blank)
-                    ;; optional filter
-                    (* (: (group (or (or ,@hurl-mode--no-arg-filters)
-                                     (or ,@hurl-mode--single-int-arg-filters)
-                                     (or ,@hurl-mode--single-string-arg-filters)
-                                     (or ,@hurl-mode--double-string-arg-filters)))
-                          (* blank)
-                          ;; optional filter params, single or double string args, single int
-                          (? (group (* digit)))
-                          (? (group (: "\"" (* alnum) "\"")))
-                          (* blank)
-                          (? (group (: "\"" (* alnum) "\""))))))))
 
 (defconst hurl-mode--assert-regexp
   (rx-to-string `(: bol
@@ -270,8 +243,6 @@
                          (re-search-forward
                           (rx-to-string `(group (or ,@hurl-mode--no-arg-filters)))
                           (save-excursion (end-of-line) (point)) t)))
-    (message "2: pos %s next %s substr: %s" (match-beginning 0) next
-             (buffer-substring-no-properties (match-beginning 0) next))
     (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))))
 
 
@@ -310,6 +281,61 @@
        (hurl-fontify-filters)
        t)
      )))
+
+(defun hurl-fontify-captures (limit)
+  (let ((end-of-l (lambda () (save-excursion (end-of-line) (point)))))
+    (save-match-data
+      (when (re-search-forward (rx-to-string
+                                `(: bol (group (* (or alnum "_" "-")) ":") (* blank)
+                                  (group (or (or ,@hurl-mode--no-arg-queries)
+                                             (or ,@hurl-mode--arg-queries)
+                                             "certificate"))))
+                               limit t)
+        (let* ((http-method-pos (or (save-match-data (save-excursion (re-search-backward (rx-to-string `(or ,@hurl-mode--http-method-keywords)) nil t))) 0))
+              (non-response-sections-pos (or (save-match-data (save-excursion (re-search-backward (rx-to-string `(or "[QueryStringParams]" "[FormParams]" "[MultipartFormData]" "[BasicAuth]" "[Cookies]" "[Options]")) (+ 1 http-method-pos) t))) 0))
+              (response-sections-pos (or (save-match-data (save-excursion (re-search-backward (rx-to-string `(or "[Asserts]" "[Captures]")) (+ 1 http-method-pos) t))) 0)))
+          (when (and (> response-sections-pos http-method-pos) (> response-sections-pos non-response-sections-pos))
+            (let ((found-query (buffer-substring (match-beginning 2) (match-end 2))))
+              (add-text-properties (match-beginning 1) (1- (match-end 1)) '(font-lock-fontified t face hurl-mode-variable-face))
+              (or
+               (when (cl-find-if (lambda (q) (string= found-query q)) hurl-mode--no-arg-queries)
+                 (add-text-properties (match-beginning 2) (match-end 2) '(font-lock-fontified t face hurl-mode-query-face))
+                 (hurl-fontify-filters)
+                 t)
+               (when (cl-find-if (lambda (q) (string= found-query q)) hurl-mode--arg-queries)
+                 (message "capture query arg")
+                 (add-text-properties (match-beginning 2) (match-end 2) '(font-lock-fontified t face hurl-mode-query-face))
+                 (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+                   (when-let (arg-pos (re-search-forward filter-arg-rx (funcall end-of-l) t))
+                     (add-text-properties (match-beginning 0) arg-pos
+                                          '(font-lock-fontified t face font-lock-string-face))))
+                 (hurl-fontify-filters)
+                 t)
+               (when (string= found-query "certificate")
+                 (add-text-properties (match-beginning 2) (match-end 2) '(font-lock-fontified t face hurl-mode-query-face))
+                 (let ((filter-arg-rx (rx-to-string `(group (or ,@hurl-mode--certificate-attrs)))))
+                   (when-let (arg-pos (re-search-forward filter-arg-rx (funcall end-of-l) t))
+                     (add-text-properties (match-beginning 0) arg-pos
+                                          '(font-lock-fontified t face font-lock-string-face))))
+                 (hurl-fontify-filters)
+                 t)
+               )))))))
+  )
+
+(defun hurl-fontify-headers (limit)
+  (save-match-data
+    (when (re-search-forward (rx-to-string `(: bol (group (* (or alnum "_" "-")) ":") (group (* any)))) limit t)
+      (message "found potential header %s" (buffer-substring (match-beginning 1) (match-end 1)))
+      (add-text-properties (match-beginning 1) (match-end 1) '(font-lock-fontified t face hurl-mode-variable-face))
+      (let ((http-method-pos (or (save-match-data (save-excursion (re-search-backward (rx-to-string `(or ,@hurl-mode--http-method-keywords)) nil t))) 0))
+            (non-response-sections-pos (or (save-match-data (save-excursion (re-search-backward (rx-to-string `(or "[QueryStringParams]" "[FormParams]" "[MultipartFormData]" "[BasicAuth]" "[Cookies]" "[Options]")) nil t))) 0))
+            (response-sections-pos (or (save-match-data (save-excursion (re-search-backward (rx-to-string `(or "[Asserts]" "[Captures]")) nil t))) 0)))
+        (message "http: %s non-resp %s resp %s" http-method-pos non-response-sections-pos response-sections-pos)
+        (when (or (> http-method-pos response-sections-pos) (> non-response-sections-pos response-sections-pos))
+          (add-text-properties (match-beginning 2) (match-end 2) '(font-lock-fontified t face hurl-mode-variable-value-face))
+          t)
+        )))
+  )
 
 (defun hurl-fontify-src-blocks (limit)
   "Fontifies body blocks for detected languages.
@@ -371,8 +397,8 @@ since we don't need to care about the other block types in org."
      (2 'hurl-mode-url-face))
     (,hurl-mode--expected-response-regexp (1 'hurl-mode-method-face)
                                           (2 'hurl-mode-url-face))
-    (,hurl-mode--header-regexp (1 'hurl-mode-header-names-face)
-                               (2 'hurl-mode-header-value-face))
+    (hurl-fontify-captures)
+    (hurl-fontify-headers)
     (hurl-fontify-asserts)
     (hurl-fontify-src-blocks)
     (,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))))
