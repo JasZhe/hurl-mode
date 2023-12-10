@@ -257,12 +257,33 @@
   (save-excursion
     (hurl-fontify-no-arg-filters)))
 
+(defun hurl-fontify-predicates ()
+  (when (re-search-forward
+         (rx-to-string `(: (? (group "not")) (* blank) (group (or ,@hurl-mode--predicates)) (* blank) (? (group (* (category ascii))))))
+         (save-excursion (end-of-line) (point))
+         t)
+    (let ((not-beg (match-beginning 1))
+          (not-end (match-end 1))
+          (pred-beg (match-beginning 2))
+          (pred-end (match-end 2))
+          (arg-beg (match-beginning 3))
+          (arg-end (match-beginning 3))
+          )
+      (when not-beg
+        (add-text-properties not-beg not-end '(font-lock-fontified t face font-lock-warning-face)))
+      (when pred-beg
+        (add-text-properties pred-beg pred-end '(font-lock-fontified t face font-lock-keyword-face)))
+      (when arg-beg
+        (add-text-properties arg-beg arg-end '(font-lock-fontified t face font-lock-string-face)))
+      )))
+
 (defun hurl-fontify-asserts (limit)
   (save-match-data
     (or
      (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--no-arg-queries)))) limit t))
        (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
        (hurl-fontify-filters)
+       (hurl-fontify-predicates)
        t)
      (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--arg-queries)))) limit t))
        (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
@@ -271,6 +292,7 @@
            (add-text-properties (match-beginning 0) arg-pos
                                 '(font-lock-fontified t face font-lock-string-face))))
        (hurl-fontify-filters)
+       (hurl-fontify-predicates)
        t)
      (when (setq next (re-search-forward "certificate" limit t))
        (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
@@ -279,6 +301,7 @@
            (add-text-properties (match-beginning 0) arg-pos
                                 '(font-lock-fontified t face font-lock-string-face))))
        (hurl-fontify-filters)
+       (hurl-fontify-predicates)
        t)
      )))
 
