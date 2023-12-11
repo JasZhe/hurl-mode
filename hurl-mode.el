@@ -218,11 +218,15 @@ since we don't need to care about the other block types in org."
         ;; see: https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fontification.html
         t))))
 
+;; Idea: only match " that doesn't have a \ immediate before it, or the empty string ""
+;; key is using the non greedy *?
+(defconst string-arg-with-escaped-quote
+  `(or (: "\"" (*? (category ascii) ) (not "\\") "\"") (: "\"\"")))
 
 (defconst hurl--query-regexp
   `(or (group (or ,@hurl-mode--no-arg-queries))
        (: (group (or ,@hurl-mode--arg-queries)) blank
-          (group (minimal-match (: "\"" (+ (not "\"") ) "\""))))
+          (group ,string-arg-with-escaped-quote))
        (: (group "certificate") blank
           (group (or ,@hurl-mode--certificate-attrs))
           ))
@@ -233,7 +237,7 @@ since we don't need to care about the other block types in org."
   (list
    (rx-to-string `(: (group (or ,@hurl-mode--single-string-arg-filters))
                    blank
-                   (group (minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+                   (group ,string-arg-with-escaped-quote)))
    nil
    '(beginning-of-line)
    '(1 'hurl-mode-filter-face t)
@@ -244,8 +248,8 @@ since we don't need to care about the other block types in org."
 (defun hurl--double-string-arg-filter-matcher ()
   (list
     (rx-to-string `(: (group (or ,@hurl-mode--double-string-arg-filters)) blank
-                    (group (minimal-match (: "\"" (+ (not "\"") ) "\""))) blank
-                    (group (minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+                    (group ,string-arg-with-escaped-quote) blank
+                    (group ,string-arg-with-escaped-quote)))
     nil
     '(beginning-of-line)
     '(1 'hurl-mode-filter-face t)
