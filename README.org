@@ -35,8 +35,11 @@ I mostly wrote this for two reasons, one to have some basic font locking and stu
 I won't stop people from making PR's but given the above, I would actually like to tackle any issues myself first :) if you would bear with my inexperience. Pointers and advice in the issues would also be appreciated for the same reason.
 
 * Acknowledgements
-Took a lot of inspiration for the extend region function from [[https://github.com/nex3/haml-mode][haml-mode]]
+Took a lot of inspiration for the extend region function from [[https://github.com/nex3/haml-mode][haml-mode]] (no longer using extend region, instead sort of using the same hackyish method that org babel uses)
 
 Also found this example very useful for [[https://stackoverflow.com/questions/9452615/emacs-is-there-a-clear-example-of-multi-line-font-locking][multi line font locking]]
 
 Another good resource [[https://www.omarpolo.com/post/writing-a-major-mode.html][here]]
+
+The code in org for fontifying src blocks was also very useful, more info in the code. Also found [[https://fuco1.github.io/2017-06-01-The-absolute-awesomeness-of-anchored-font-lock-matchers.html][this]]
+pretty useful for demystifying how the anchored [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fontification.html][search-based fontification]] worked.
