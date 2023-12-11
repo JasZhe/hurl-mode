@@ -27,12 +27,22 @@ With straight:
    '(hurl-mode :type git :host github :repo "jaszhe/hurl-mode"))
 #+end_src
 
+* Motivation
+Hurl does have an existing mode included [[https://github.com/Orange-OpenSource/hurl/tree/master/contrib/emacs][here]] but it was lacking some QOL features that I wanted like body highlighting depending on what language the body was in i.e. json/graphql
+
+I created this repo so that it would be easier for me to incorporate requested changes from the emacs community.
+
+Prior to this I was using the excellent [[https://github.com/pashky/restclient.el][restclient.el]] but I liked hurl because it's a little more portable than sharing curl scripts to non-emacs users (albeit they need to have hurl installed)
+
+Lastly, I also used this as an exercise to learn more about emacs lisp and how major modes are structured and as a way to give back to this wonderful editor known as emacs.
+
 * Contributing
 My use case for hurl is actually pretty simple. I just use it to send some basic requests with some auth capturing mixed in. I don't really make too much use of the test/assertion facilities. So if you do have some more complicated use cases that aren't covered here, feel free to drop an issue.
 
 I mostly wrote this for two reasons, one to have some basic font locking and stuff for hurl (and also org babel integration where I find it most useful actually) and to learn a bit more elisp.
 
 I won't stop people from making PR's but given the above, I would actually like to tackle any issues myself first :) if you would bear with my inexperience. Pointers and advice in the issues would also be appreciated for the same reason.
+
 
 * Acknowledgements
 Took a lot of inspiration for the extend region function from [[https://github.com/nex3/haml-mode][haml-mode]] (no longer using extend region, instead sort of using the same hackyish method that org babel uses)
