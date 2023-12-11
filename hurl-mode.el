@@ -219,24 +219,6 @@ since we don't need to care about the other block types in org."
         t))))
 
 
-(defun hurl-fontify-no-arg-queries (limit)
-  (save-match-data
-    (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--no-arg-queries)))) limit t))
-      (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
-      t))
-  )
-
-(defun hurl-fontify-arg-queries (limit)
-  (save-match-data
-    (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--arg-queries)))) limit t))
-      (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
-      (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
-        (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
-          (add-text-properties (match-beginning 0) arg-pos
-                               '(font-lock-fontified t face font-lock-string-face))))
-      t))
-  )
-
 (defconst hurl--query-regexp
   `(or (group (or ,@hurl-mode--no-arg-queries))
        (: (group (or ,@hurl-mode--arg-queries)) blank
@@ -295,7 +277,7 @@ since we don't need to care about the other block types in org."
 
 ;; anchored highlighter for captures
 ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fontification.html
-(defun variable-and-capture-matcher ()
+(defun hurl-variable-and-capture-matcher ()
   (list
    ;; variable name as anchor
    (rx-to-string `(: bol (group (* (or alnum "_" "-")) ":") blank
@@ -316,7 +298,7 @@ since we don't need to care about the other block types in org."
    )
   )
 
-(defun assert-matcher ()
+(defun hurl-assert-matcher ()
   (list
    (rx-to-string `(: bol ,hurl--query-regexp))
    '(1 'hurl-mode-query-face t t) ;; noarg
@@ -346,8 +328,8 @@ since we don't need to care about the other block types in org."
    `(,hurl-mode--expected-response-regexp (1 'hurl-mode-method-face) (2 'hurl-mode-url-face))
    `(,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))
    '(hurl-fontify-src-blocks)
-   (variable-and-capture-matcher)
-   (assert-matcher)
+   (hurl-variable-and-capture-matcher)
+   (hurl-assert-matcher)
    )
   )
 
