@@ -35,6 +35,7 @@
 
 ;; this is just for org-src-get-lang-mode
 (require 'org-src)
+(require 'js)
 
 (eval-when-compile
   (require 'rx))
@@ -363,6 +364,8 @@ since we don't need to care about the other block types in org."
   (setq-local font-lock-multiline t)
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
+  ;; honestly I think this works good enough for us and its built in without us doing anything crazy
+  (setq-local indent-line-function 'js-indent-line)
   )
 
 ;; so we don't get auto ` pairing if smartparens mode exists
