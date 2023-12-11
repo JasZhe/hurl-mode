@@ -100,17 +100,22 @@
 
 (defface hurl-mode-pred-face
   '((t (:inherit font-lock-keyword-face)))
-  "Face for hurl filter arguments"
+  "Face for hurl predicates"
   :group 'hurl-faces)
 
 (defface hurl-mode-pred-arg-face
   '((t (:inherit font-lock-string-face)))
-  "Face for hurl filter arguments"
+  "Face for hurl predicate arguments"
   :group 'hurl-faces)
 
 (defface hurl-mode-body-face
   '((t (:inherit font-lock-string-face)))
   "Face for body values"
+  :group 'hurl-faces)
+
+(defface hurl-mode-template-face
+  '((t (:inherit font-lock-type-face)))
+  "Face for templates"
   :group 'hurl-faces)
 
 
@@ -120,6 +125,9 @@
   (rx-to-string `(: bol
                   (group (or ,@hurl-mode--http-method-keywords))
                   (group (+ not-newline)))))
+
+(defconst hurl-mode--template-regexp
+  (rx-to-string `(: "{{" (* (or alnum "-" "_")) "}}")))
 
 (defconst hurl-mode--section-header-keywords
   '("[QueryStringParams]" "[FormParams]" "[MultipartFormData]" "[BasicAuth]" "[Cookies]" "[Asserts]" "[Captures]" "[Options]"))
@@ -332,6 +340,7 @@ since we don't need to care about the other block types in org."
 (defconst hurl-mode-keywords
   (list
    `(,hurl-mode--http-method-regexp (1 'hurl-mode-method-face) (2 'hurl-mode-url-face))
+   `(,hurl-mode--template-regexp (0 'hurl-mode-template-face t t))
    `(,hurl-mode--expected-response-regexp (1 'hurl-mode-method-face) (2 'hurl-mode-url-face))
    `(,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))
    '(hurl-fontify-src-blocks)
