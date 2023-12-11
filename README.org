@@ -14,6 +14,9 @@ POST {{host}}
 ,#+end_src
 #+end_example
 
+** screenshot
+[[file:screenshot.png]]
+
 * Installation
 With emacs 29 we have built in package-vc-install and use-package now
 #+begin_src elisp
