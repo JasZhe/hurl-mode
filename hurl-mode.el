@@ -63,16 +63,6 @@
   "Face for hurl sections"
   :group 'hurl-faces)
 
-(defface hurl-mode-header-names-face
-  '((t (:inherit font-lock-variable-name-face)))
-  "Face for header names"
-  :group 'hurl-faces)
-
-(defface hurl-mode-header-value-face
-  '((t (:inherit font-lock-string-face)))
-  "Face for header values"
-  :group 'hurl-faces)
-
 (defface hurl-mode-variable-face
   '((t (:inherit font-lock-variable-name-face)))
   "Face for hurl variables"
@@ -124,8 +114,6 @@
   :group 'hurl-faces)
 
 
-
-
 (defconst hurl-mode--http-method-keywords
   '("GET" "HEAD" "POST" "PUT" "DELETE" "CONNECT" "OPTIONS" "TRACE" "PATCH"))
 (defconst hurl-mode--http-method-regexp
@@ -144,12 +132,6 @@
                   (group "HTTP")
                   (+ blank)
                   (group (= 3 digit)))))
-
-(defconst hurl-mode--header-regexp
-  (rx-to-string `(: bol
-                  (group (* (or alpha "_" "-")) ":")
-                  (+ blank)
-                  (group (* any)))))
 
 (defconst hurl-mode--arg-queries
   '("header" "cookie" "xpath" "jsonpath" "regex" "variable"))
@@ -170,186 +152,6 @@
 (defconst hurl-mode--single-string-arg-filters '("regex" "split" "xpath"))
 (defconst hurl-mode--double-string-arg-filters `("replace"))
 
-(defconst hurl-mode--assert-regexp
-  (rx-to-string `(: bol
-                    ;; query
-                    (group (or (or ,@hurl-mode--no-arg-queries)
-                               (or ,@hurl-mode--arg-queries)))
-                    (* blank)
-                    ;; optional query arg
-                    (? (group (or (: "\"" (* (or (not "\"") "\\\"") ) "\"")
-                                  ,@hurl-mode--certificate-attrs)))
-                    (* blank)
-                    ;; optional filter
-                    (* (: (group (or ,@hurl-mode--no-arg-filters
-                                     ,@hurl-mode--single-int-arg-filters
-                                     ,@hurl-mode--single-string-arg-filters
-                                     ,@hurl-mode--double-string-arg-filters))
-                          (* blank)
-                          ;; optional filter args, single int, single or double string
-                          (? (group (* digit)))
-                          (? (group (: "\"" (* (category ascii)) "\"")))
-                          (* blank)
-                          (? (group (: "\"" (* (category ascii)) "\"")))))
-                    ;; predicate
-                    (group (or ,@hurl-mode--predicates))
-                    ;; optional predicate arg
-                    (? (group (* (category ascii))))
-                    )))
-
-
-(defun hurl-fontify-single-string-filters ()
-  "Loop through a line for each occurrence of filter + string arg"
-  (while (setq next (and (not (eq (point) (save-excursion (end-of-line) (point))))
-                         (re-search-forward
-                          (rx-to-string `(group (or ,@hurl-mode--single-string-arg-filters)))
-                          (save-excursion (end-of-line) (point)) t)))
-    (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))
-    (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
-      (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
-        (add-text-properties (match-beginning 0) arg-pos
-                             '(font-lock-fontified t face font-lock-string-face))))))
-
-(defun hurl-fontify-double-string-filters ()
-  "Loop through a line for each occurrence of filter + string arg + string arg"
-  (while (setq next (and (not (eq (point) (save-excursion (end-of-line) (point))))
-                         (re-search-forward
-                          (rx-to-string `(group (or ,@hurl-mode--double-string-arg-filters)))
-                          (save-excursion (end-of-line) (point)) t)))
-    (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))
-    (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
-      (when-let (arg-pos-1
-                 (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
-        (add-text-properties (match-beginning 0) arg-pos-1
-                             '(font-lock-fontified t face font-lock-regexp-face))
-        (when-let (arg-pos-2
-                   (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
-          (add-text-properties (match-beginning 0) arg-pos-2
-                               '(font-lock-fontified t face font-lock-string-face)))))))
-
-
-(defun hurl-fontify-single-int-filters ()
-  "Loop through a line for each occurrence of filter + int arg"
-  (while (setq next (and (not (eq (point) (save-excursion (end-of-line) (point))))
-                         (re-search-forward
-                          (rx-to-string `(group (or ,@hurl-mode--single-int-arg-filters)))
-                          (save-excursion (end-of-line) (point)) t)))
-    (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))
-    (let ((filter-arg-rx (rx-to-string `(+ digit))))
-      (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
-        (add-text-properties (match-beginning 0) arg-pos
-                             '(font-lock-fontified t face font-lock-constant-face))))))
-
-
-(defun hurl-fontify-no-arg-filters ()
-  "Loop through a line for each occurrence of no arg filter"
-  (while (setq next (and (not (eq (point) (save-excursion (end-of-line) (point))))
-                         (re-search-forward
-                          (rx-to-string `(group (or ,@hurl-mode--no-arg-filters)))
-                          (save-excursion (end-of-line) (point)) t)))
-    (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-filter-face))))
-
-
-(defun hurl-fontify-filters ()
-  ;; need the save excursions to restart fontification from the beginning of the line for each type of filter
-  (save-excursion
-    (hurl-fontify-single-string-filters))
-  (save-excursion
-    (hurl-fontify-double-string-filters))
-  (save-excursion
-    (hurl-fontify-single-int-filters))
-  (save-excursion
-    (hurl-fontify-no-arg-filters)))
-
-(defun hurl-fontify-predicates ()
-  (when (re-search-forward
-         (rx-to-string `(: (? (group "not")) (* blank) (group (or ,@hurl-mode--predicates)) (* blank) (? (group (* (category ascii))))))
-         (save-excursion (end-of-line) (point))
-         t)
-    (let ((not-beg (match-beginning 1))
-          (not-end (match-end 1))
-          (pred-beg (match-beginning 2))
-          (pred-end (match-end 2))
-          (arg-beg (match-beginning 3))
-          (arg-end (match-beginning 3))
-          )
-      (when not-beg
-        (add-text-properties not-beg not-end '(font-lock-fontified t face font-lock-warning-face)))
-      (when pred-beg
-        (add-text-properties pred-beg pred-end '(font-lock-fontified t face font-lock-keyword-face)))
-      (when arg-beg
-        (add-text-properties arg-beg arg-end '(font-lock-fontified t face font-lock-string-face)))
-      )))
-
-(defun hurl-fontify-asserts (limit)
-  (save-match-data
-    (or
-     (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--no-arg-queries)))) limit t))
-       (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
-       (hurl-fontify-filters)
-       (hurl-fontify-predicates)
-       t)
-     (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--arg-queries)))) limit t))
-       (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
-       (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
-         (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
-           (add-text-properties (match-beginning 0) arg-pos
-                                '(font-lock-fontified t face font-lock-string-face))))
-       (hurl-fontify-filters)
-       (hurl-fontify-predicates)
-       t)
-     (when (setq next (re-search-forward "certificate" limit t))
-       (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
-       (let ((filter-arg-rx (rx-to-string `(group (or ,@hurl-mode--certificate-attrs)))))
-         (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
-           (add-text-properties (match-beginning 0) arg-pos
-                                '(font-lock-fontified t face font-lock-string-face))))
-       (hurl-fontify-filters)
-       (hurl-fontify-predicates)
-       t)
-     )))
-
-(defun hurl-fontify-captures (limit)
-  (let ((end-of-l (lambda () (save-excursion (end-of-line) (point)))))
-    (save-match-data
-      (when (re-search-forward (rx-to-string
-                                `(: bol (group (* (or alnum "_" "-")) ":") (* blank)
-                                  (group (or (or ,@hurl-mode--no-arg-queries)
-                                             (or ,@hurl-mode--arg-queries)
-                                             "certificate"))))
-                               limit t)
-        (let ((found-query (buffer-substring (match-beginning 2) (match-end 2))))
-          (add-text-properties (match-beginning 1) (1- (match-end 1)) '(font-lock-fontified t face hurl-mode-variable-face))
-          (or
-           (when (cl-find-if (lambda (q) (string= found-query q)) hurl-mode--no-arg-queries)
-             (add-text-properties (match-beginning 2) (match-end 2) '(font-lock-fontified t face hurl-mode-query-face))
-             (hurl-fontify-filters)
-             t)
-           (when (cl-find-if (lambda (q) (string= found-query q)) hurl-mode--arg-queries)
-             (add-text-properties (match-beginning 2) (match-end 2) '(font-lock-fontified t face hurl-mode-query-face))
-             (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
-               (when-let (arg-pos (re-search-forward filter-arg-rx (funcall end-of-l) t))
-                 (add-text-properties (match-beginning 0) arg-pos
-                                      '(font-lock-fontified t face font-lock-string-face))))
-             (hurl-fontify-filters)
-             t)
-           (when (string= found-query "certificate")
-             (add-text-properties (match-beginning 2) (match-end 2) '(font-lock-fontified t face hurl-mode-query-face))
-             (let ((filter-arg-rx (rx-to-string `(group (or ,@hurl-mode--certificate-attrs)))))
-               (when-let (arg-pos (re-search-forward filter-arg-rx (funcall end-of-l) t))
-                 (add-text-properties (match-beginning 0) arg-pos
-                                      '(font-lock-fontified t face font-lock-string-face))))
-             (hurl-fontify-filters)
-             t)
-           )))))
-  )
-
-(defun hurl-fontify-variables (limit)
-  (save-match-data
-    (when (re-search-forward (rx-to-string `(: bol (group (* (or alnum "_" "-")) ":"))) limit t)
-      (add-text-properties (match-beginning 1) (match-end 1) '(font-lock-fontified t face hurl-mode-variable-face))
-      ))
-  )
 
 (defun hurl-fontify-src-blocks (limit)
   "Fontifies body blocks for detected languages.
@@ -359,7 +161,7 @@ This is basically a simplified version of the bomination of org-fontify-meta-lin
 since we don't need to care about the other block types in org."
   (when (re-search-forward
          (rx bol (group "```"
-                        (group (one-or-more (any "a-zA-Z")))
+                        (group (zero-or-more (any "a-zA-Z")))
                         (group (group (zero-or-more (not (any " \t\n"))))
                                (zero-or-more (any " \t"))
                                (group (zero-or-more any)))))
@@ -370,9 +172,7 @@ since we don't need to care about the other block types in org."
           (block-end nil)
           (lang (match-string 2))
           end-of-endline)
-      (when (re-search-forward
-             (rx-to-string `(group bol (or (seq (one-or-more "*") space)
-                                           (seq bol "```" (zero-or-more any))))))
+      (when (re-search-forward (rx-to-string `(group bol "```")))
         (setq block-end (match-beginning 0))
         (setq end-of-endline (match-end 0))
         (add-text-properties
@@ -384,7 +184,7 @@ since we don't need to care about the other block types in org."
           (let ((string (buffer-substring-no-properties block-start block-end))
                 (lang-mode (org-src-get-lang-mode lang))
                 (my-buffer (current-buffer)))
-            (when (fboundp lang-mode)
+            (if (fboundp lang-mode)
               ;; for debugging purposes having a real (hidden) buffer to see what's being fontified is nice (org does this)
               ;; but we can easily switch to just with-temp-buffer if we no longer want this
               (with-current-buffer (get-buffer-create (format " *hurl fontify buffer:%s*" lang-mode))
