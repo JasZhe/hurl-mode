@@ -103,8 +103,13 @@
   "Face for hurl filter arguments"
   :group 'hurl-faces)
 
+(defface hurl-mode-pred-negation-face
+  '((t (:inherit font-lock-negation-char-face)))
+  "Face for hurl predicate not prefix"
+  :group 'hurl-faces)
+
 (defface hurl-mode-pred-face
-  '((t (:inherit font-lock-operator-face)))
+  '((t (:inherit font-lock-keyword-face)))
   "Face for hurl filter arguments"
   :group 'hurl-faces)
 
@@ -153,8 +158,7 @@
   '("status" "url" "body" "duration" "sha256" "md5" "bytes"))
 
 (defconst hurl-mode--certificate-attrs
-  `("Subject" "Issuer" "Start-Date" "Expire-Date" "Serial-Number"))
-
+  '("Subject" "Issuer" "Start-Date" "Expire-Date" "Serial-Number"))
 
 (defconst hurl-mode--predicates
   '("==" "!=" ">" ">=" "<" "<=" "startsWith" "endsWith" "contains" "includes" "matches" "exists" "isBoolean" "isCollection" "isDate" "isEmpty" "isFloat" "isInteger" "isString"))
@@ -396,22 +400,145 @@ since we don't need to care about the other block types in org."
                           (put-text-property (+ block-start (1- pos)) (1- (+ block-start next)) prop new-prop my-buffer)))
                       )
                     (setq pos next))
-                  )))))
+                  ))
+              ;; otherwise if lang not found just fontify with body face
+              (add-text-properties block-start block-end `(font-lock-fontified t font-lock-multiline t face hurl-mode-body-face))
+              ()
+              )))
         ;; this t is really important
         ;; see: https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fontification.html
         t))))
 
 
+(defun hurl-fontify-no-arg-queries (limit)
+  (save-match-data
+    (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--no-arg-queries)))) limit t))
+      (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
+      t))
+  )
+
+(defun hurl-fontify-arg-queries (limit)
+  (save-match-data
+    (when (setq next (re-search-forward (rx-to-string `(: bol (group (or ,@hurl-mode--arg-queries)))) limit t))
+      (add-text-properties (match-beginning 0) next '(font-lock-fontified t face hurl-mode-query-face))
+      (let ((filter-arg-rx (rx-to-string `(minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+        (when-let (arg-pos (re-search-forward filter-arg-rx (save-excursion (end-of-line) (point)) t))
+          (add-text-properties (match-beginning 0) arg-pos
+                               '(font-lock-fontified t face font-lock-string-face))))
+      t))
+  )
+
+(defconst hurl--query-regexp
+  `(or (group (or ,@hurl-mode--no-arg-queries))
+       (: (group (or ,@hurl-mode--arg-queries)) blank
+          (group (minimal-match (: "\"" (+ (not "\"") ) "\""))))
+       (: (group "certificate") blank
+          (group (or ,@hurl-mode--certificate-attrs))
+          ))
+  )
+
+;; need to go to beginning of line so we can match the other filters with other arg requirements
+(defun hurl--string-arg-filter-matcher ()
+  (list
+   (rx-to-string `(: (group (or ,@hurl-mode--single-string-arg-filters))
+                   blank
+                   (group (minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+   nil
+   '(beginning-of-line)
+   '(1 'hurl-mode-filter-face t)
+   '(2 'hurl-mode-query-arg-face t)
+   )
+  )
+
+(defun hurl--double-string-arg-filter-matcher ()
+  (list
+    (rx-to-string `(: (group (or ,@hurl-mode--double-string-arg-filters)) blank
+                    (group (minimal-match (: "\"" (+ (not "\"") ) "\""))) blank
+                    (group (minimal-match (: "\"" (+ (not "\"") ) "\"")))))
+    nil
+    '(beginning-of-line)
+    '(1 'hurl-mode-filter-face t)
+    '(2 'hurl-mode-query-arg-face t)
+    '(3 'hurl-mode-query-arg-face t)
+    )
+  )
+
+(defun hurl--int-arg-filter-matcher ()
+  (list
+    (rx-to-string `(: (group (or ,@hurl-mode--single-int-arg-filters))
+                    blank
+                    (group (+ digit))))
+    nil
+    '(beginning-of-line)
+    '(1 'hurl-mode-filter-face t)
+    '(2 'font-lock-constant-face t)
+    )
+  )
+
+(defun hurl--no-arg-filter-matcher ()
+  (list
+   (rx-to-string `(: (group (or ,@hurl-mode--no-arg-filters))))
+   nil
+   '(beginning-of-line)
+   '(0 'hurl-mode-filter-face t)
+   )
+  )
+
+;; anchored highlighter for captures
+;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fontification.html
+(defun variable-and-capture-matcher ()
+  (list
+   ;; variable name as anchor
+   (rx-to-string `(: bol (group (* (or alnum "_" "-")) ":") blank
+                   ;; 0 or more queries with their arguments
+                   (? ,hurl--query-regexp)))
+   '(1 'hurl-mode-variable-face t t)
+   '(2 'hurl-mode-query-face t t) ;; noarg
+   '(3 'hurl-mode-query-face t t) ;; arg
+   '(4 'hurl-mode-query-arg-face t t)
+   '(5 'hurl-mode-query-face t t) ;; certificate
+   '(6 'hurl-mode-query-arg-face t t)
+   (hurl--string-arg-filter-matcher)
+   (hurl--double-string-arg-filter-matcher)
+   (hurl--int-arg-filter-matcher)
+   (hurl--no-arg-filter-matcher)
+   ;; fontify the rest for non capture type variables
+   (list ".*" nil nil '(0 'font-lock-string-face nil))
+   )
+  )
+
+(defun assert-matcher ()
+  (list
+   (rx-to-string `(: bol ,hurl--query-regexp))
+   '(1 'hurl-mode-query-face t t) ;; noarg
+   '(2 'hurl-mode-query-face t t) ;; arg
+   '(3 'hurl-mode-query-arg-face t t)
+   '(4 'hurl-mode-query-face t t) ;; certificate
+   '(5 'hurl-mode-query-arg-face t t)
+   (hurl--string-arg-filter-matcher)
+   (hurl--double-string-arg-filter-matcher)
+   (hurl--int-arg-filter-matcher)
+   (hurl--no-arg-filter-matcher)
+   (list
+    (rx-to-string `(: (? (group "not")) (* blank) (group (or ,@hurl-mode--predicates)) (* blank) (? (group (* (category ascii))))))
+    nil nil
+    '(1 'font-lock-negation-char-face t t)
+    '(2 'font-lock-keyword-face t t)
+    '(3 'font-lock-constant-face t t)
+    )
+   )
+  )
+
 (defconst hurl-mode-keywords
-  `((,hurl-mode--http-method-regexp (1 'hurl-mode-method-face)
-     (2 'hurl-mode-url-face))
-    (,hurl-mode--expected-response-regexp (1 'hurl-mode-method-face)
-                                          (2 'hurl-mode-url-face))
-    (hurl-fontify-captures)
-    (hurl-fontify-variables)
-    (hurl-fontify-asserts)
-    (hurl-fontify-src-blocks)
-    (,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))))
+  (list
+   `(,hurl-mode--http-method-regexp (1 'hurl-mode-method-face) (2 'hurl-mode-url-face))
+   `(,hurl-mode--expected-response-regexp (1 'hurl-mode-method-face) (2 'hurl-mode-url-face))
+   `(,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))
+   '(hurl-fontify-src-blocks)
+   (variable-and-capture-matcher)
+   (assert-matcher)
+   )
+  )
 
 (defconst hurl-mode-syntax-table
   (let ((table (make-syntax-table)))
