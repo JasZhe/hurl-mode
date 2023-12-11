@@ -341,6 +341,7 @@ since we don't need to care about the other block types in org."
   (list
    `(,hurl-mode--http-method-regexp (1 'hurl-mode-method-face) (2 'hurl-mode-url-face))
    `(,hurl-mode--template-regexp (0 'hurl-mode-template-face t t))
+   (list (rx-to-string `(: (or (not "\\") line-start) "#" (* any))) '(0 'font-lock-comment-face t t))
    `(,hurl-mode--expected-response-regexp (1 'hurl-mode-method-face) (2 'hurl-mode-url-face))
    `(,hurl-mode--section-header-regexp (0 'hurl-mode-section-face))
    '(hurl-fontify-src-blocks)
