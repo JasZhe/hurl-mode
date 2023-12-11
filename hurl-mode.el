@@ -375,15 +375,31 @@ since we don't need to care about the other block types in org."
 With one prefix arg, execute with the --test option.
 With two (or more) prefix args, prompt for arbitrary additional options to hurl command"
   (interactive "P")
-  (let ((args (cond ((equal arg '(4)) "--test")
-                    ((equal arg '(16)) (read-string "additional cli options: "))
-                    (t ""))))
-    (async-shell-command (format "hurl %s %s" args (buffer-file-name)))))
+  (let ((args (concat (cond ((equal arg '(4)) "--test")
+                            ((equal arg '(16)) (read-string "additional cli options: "))
+
+                            (t ""))))
+        (buf-name "*hurl-request*"))
+    ;; stole this from:
+    ;; https://emacs.stackexchange.com/questions/16617/interpret-terminal-escape-codes-in-generic-process-output
+    (when-let ((buf (get-buffer buf-name))) (kill-buffer buf))
+    (let* ((proc (apply 'start-process (append '("hurl") `(,buf-name) '("hurl") (split-string-shell-command args) `(,(buffer-file-name)))))
+           (proc-buffer (process-buffer proc)))
+      (with-current-buffer proc-buffer
+        (display-buffer proc-buffer)
+        (beginning-of-line)
+        (visual-line-mode)
+        (require 'shell)
+        (shell-mode)
+        (set-process-filter proc 'comint-output-filter)
+        )
+      )
+    ))
 
 (setq hurl-mode-map
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "C-c C-c") 'hurl-mode-send-request)
-    map))
+      (let ((map (make-sparse-keymap)))
+        (define-key map (kbd "C-c C-c") 'hurl-mode-send-request)
+        map))
 
 
 (provide 'hurl-mode)
