@@ -1,5 +1,6 @@
 * hurl-mode
-An Emacs major mode for [[https://hurl.dev/][hurl]]
+An Emacs major mode for [[https://hurl.dev/][hurl]], a cli tool for sending HTTP requests (using cURL under the hood) in plain text format similar to [[https://github.com/pashky/restclient.el][restclient.el]],
+but can be used outside emacs and also has some additional testing utilities built in.
 
 * Usage
 A simple wrapper for the cli command is provided via: ~hurl-mode-send-request~ with a shortcut of =C-c C-c=
@@ -30,6 +31,16 @@ With straight:
    '(hurl-mode :type git :host github :repo "jaszhe/hurl-mode"))
 #+end_src
 
+With doom:
+#+begin_src elisp
+(package! hurl-mode :recipe (:host github :repo "jaszhe/hurl-mode" :files ("*.el")))
+#+end_src
+
+Add to auto mode alist
+#+begin_src elisp
+(add-to-list 'auto-mode-alist '("\\.hurl\\'" . hurl-mode))
+#+end_src
+
 * Motivation
 Hurl does have an existing mode included [[https://github.com/Orange-OpenSource/hurl/tree/master/contrib/emacs][here]] but it was lacking some QOL features that I wanted like body highlighting depending on what language the body was in i.e. json/graphql
 
@@ -40,11 +51,16 @@ Prior to this I was using the excellent [[https://github.com/pashky/restclient.e
 Lastly, I also used this as an exercise to learn more about emacs lisp and how major modes are structured and as a way to give back to this wonderful editor known as emacs.
 
 * Contributing
-My use case for hurl is actually pretty simple. I just use it to send some basic requests with some auth capturing mixed in. I don't really make too much use of the test/assertion facilities. So if you do have some more complicated use cases that aren't covered here, feel free to drop an issue.
+My use case for hurl is actually pretty simple.
+I just use it to send some basic requests with some auth capturing mixed in.
+I don't really make too much use of the test/assertion facilities.
+So if you do have some more complicated use cases that aren't covered here, feel free to drop an issue.
 
-I mostly wrote this for two reasons, one to have some basic font locking and stuff for hurl (and also org babel integration where I find it most useful actually) and to learn a bit more elisp.
+I mostly wrote this for two reasons, one to have some basic font locking and stuff for hurl
+(and also org babel integration where I find it most useful actually) and to learn a bit more elisp.
 
-I won't stop people from making PR's but given the above, I would actually like to tackle any issues myself first :) if you would bear with my inexperience. Pointers and advice in the issues would also be appreciated for the same reason.
+I won't stop people from making PR's but given the above, I would actually like to tackle any issues myself first :)
+if you would bear with my inexperience. Pointers and advice in the issues would also be appreciated for the same reason.
 
 
 * Acknowledgements
