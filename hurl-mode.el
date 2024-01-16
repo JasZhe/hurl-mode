@@ -452,7 +452,7 @@ With three prefix ARGs, prompt for arbitrary additional options to hurl command.
     (let* ((proc (apply 'start-process
                         (append '("hurl") `(,buf-name) '("hurl")
                                 (split-string-shell-command args)
-                                '("--color") `(,(buffer-file-name)))))
+                                `(,(buffer-file-name)))))
            (proc-buffer (process-buffer proc)))
       (with-current-buffer proc-buffer
         (display-buffer proc-buffer)
@@ -467,6 +467,8 @@ With three prefix ARGs, prompt for arbitrary additional options to hurl command.
 
 (setq hurl-mode-map
       (let ((map (make-sparse-keymap)))
+        (define-key map (kbd "C-M-i") nil)
+        (define-key map (kbd "M-<tab>") nil)
         (define-key map (kbd "C-c C-c") 'hurl-mode-send-request)
         map))
 
