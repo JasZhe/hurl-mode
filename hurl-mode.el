@@ -36,6 +36,8 @@
 ;; this is just for org-src-get-lang-mode
 (require 'org-src)
 (require 'js)
+(require 'shell)
+(require 'outline)
 
 (eval-when-compile
   (require 'rx))
@@ -45,78 +47,78 @@
   :group 'tools)
 
 (defgroup hurl-faces nil
-  "Faces used in Hurl Mode"
+  "Faces used in Hurl Mode."
   :group 'hurl
   :group 'faces)
 
-(defface hurl-mode-method-face 
+(defface hurl-mode-method-face
   '((t (:inherit font-lock-keyword-face)))
   "Face for HTTP method."
   :group 'hurl-faces)
 
 (defface hurl-mode-url-face
   '((t (:inherit font-lock-function-name-face)))
-  "Face for urls"
+  "Face for urls."
   :group 'hurl-faces)
 
 (defface hurl-mode-section-face
   '((t (:inherit font-lock-preprocessor-face)))
-  "Face for hurl sections"
+  "Face for hurl sections."
   :group 'hurl-faces)
 
 (defface hurl-mode-variable-face
   '((t (:inherit font-lock-variable-name-face)))
-  "Face for hurl variables"
+  "Face for hurl variables."
   :group 'hurl-faces)
 
 (defface hurl-mode-variable-value-face
   '((t (:inherit font-lock-string-face)))
-  "Face for hurl variable values"
+  "Face for hurl variable values."
   :group 'hurl-faces)
 
 (defface hurl-mode-query-face
   '((t (:inherit font-lock-builtin-face)))
-  "Face for hurl query keywords"
+  "Face for hurl query keywords."
   :group 'hurl-faces)
 
 (defface hurl-mode-query-arg-face
   '((t (:inherit font-lock-string-face)))
-  "Face for hurl query arguments"
+  "Face for hurl query arguments."
   :group 'hurl-faces)
 
 (defface hurl-mode-filter-face
   '((t (:inherit font-lock-builtin-face)))
-  "Face for hurl filters"
+  "Face for hurl filters."
   :group 'hurl-faces)
 
 (defface hurl-mode-filter-arg-face
   '((t (:inherit font-lock-string-face)))
-  "Face for hurl filter arguments"
+  "Face for hurl filter arguments."
   :group 'hurl-faces)
 
 (defface hurl-mode-pred-negation-face
   '((t (:inherit font-lock-negation-char-face)))
-  "Face for hurl predicate not prefix"
+  "Face for hurl predicate not prefix."
   :group 'hurl-faces)
 
 (defface hurl-mode-pred-face
   '((t (:inherit font-lock-keyword-face)))
-  "Face for hurl predicates"
+  "Face for hurl predicates."
   :group 'hurl-faces)
 
 (defface hurl-mode-pred-arg-face
   '((t (:inherit font-lock-string-face)))
-  "Face for hurl predicate arguments"
+  "Face for hurl predicate arguments."
   :group 'hurl-faces)
 
 (defface hurl-mode-body-face
   '((t (:inherit font-lock-string-face)))
-  "Face for body values"
+  "Face for body values."
   :group 'hurl-faces)
 
 (defface hurl-mode-template-face
   '((t (:inherit font-lock-type-face)))
-  "Face for templates"
+  "Face for templates."
   :group 'hurl-faces)
 
 
@@ -164,9 +166,10 @@
 
 (defun hurl-fontify-src-blocks (limit)
   "Fontifies body blocks for detected languages.
-Essentially creates a temporary buffer with the specified major mode and inserts the request body text into it. Then we can copy the font properties from that temporary buffer to our real hurl buffer.
+Essentially creates a temporary buffer with the specified major mode and inserts the request body text into it.
+Then we can copy the font properties from that temporary buffer to our real hurl buffer.
 
-This is basically a simplified version of the bomination of org-fontify-meta-lines-and-blocks-1 and org-src-font-lock-fontify-block
+This is basically a simplified version of the bomination of \"org-fontify-meta-lines-and-blocks-1\" and \"org-src-font-lock-fontify-block\"
 since we don't need to care about the other block types in org."
   (when (re-search-forward
          (rx bol (group "```"
@@ -345,7 +348,7 @@ since we don't need to care about the other block types in org."
 
 ;;;###autoload
 (define-derived-mode hurl-mode text-mode "Hurl"
-  "Enable hurl mode"
+  "Enable hurl mode."
   (setq-local font-lock-defaults '(hurl-mode-keywords t nil nil backward-paragraph))
   (setq-local font-lock-multiline t)
   (setq-local comment-start "#")
@@ -359,27 +362,64 @@ since we don't need to care about the other block types in org."
   (when (fboundp 'sp-local-pair)
     (sp-local-pair 'hurl-mode "`" nil :actions nil)))
 
+(defun hurl-response-outline-level ()
+  (or 
+   (cdr
+    (cl-find-if
+     (lambda (h)
+       (string-match-p (car h) (match-string 0)))
+     hurl-outline-heading-alist
+     ))
+   (- (match-end 0) (match-beginning 0)))
+  )
+
+;;;###autoload
+(define-derived-mode hurl-response-mode shell-mode "HurlRes"
+  "Mode for the hurl response buffer.
+\"outline-minor-mode\" is enabled in this buffer.
+Each hurl request is its own block.
+Each req/resp body is also its own block."
+  (setq-local outline-blank-line t)
+  (setq-local outline-regexp "\\* ---+\\|\\* Executing entry\\|\\* Request:\\|\\* Request body:\\|\\* Response:\\|\\* Response body:")
+  (setq hurl-outline-heading-alist
+        '(("\\* Executing entry" . 1)
+          ("\\* -------" . 1)
+          ("\\* Request:" . 2)
+          ("\\* Request body:" . 2)
+          ("\\* Response:" . 2)
+          ("\\* Response body:" . 2)
+          ))
+  (setq-local outline-level #'hurl-response-outline-level)
+  (outline-minor-mode)
+  )
+
 (defun hurl-mode-send-request (arg)
   "Simple thin wrapper which sends the contents of the current file to hurl.
-With one prefix arg, execute with the --test option.
-With two (or more) prefix args, prompt for arbitrary additional options to hurl command"
+With one prefix ARG, execute with the --test option.
+With two prefix ARGs, execute with --very-verbose.
+With three prefix ARGs, prompt for arbitrary additional options to hurl command."
   (interactive "P")
   (let ((args (concat (cond ((equal arg '(4)) "--test")
-                            ((equal arg '(16)) (read-string "additional cli options: "))
+                            ((equal arg '(16)) "--very-verbose")
+                            ((equal arg '(64)) (read-string "additional cli options: "))
 
                             (t ""))))
-        (buf-name "*hurl-request*"))
+        (buf-name "*hurl-response*"))
+    (save-buffer)
     ;; stole this from:
     ;; https://emacs.stackexchange.com/questions/16617/interpret-terminal-escape-codes-in-generic-process-output
     (when-let ((buf (get-buffer buf-name))) (kill-buffer buf))
-    (let* ((proc (apply 'start-process (append '("hurl") `(,buf-name) '("hurl") (split-string-shell-command args) `(,(buffer-file-name)))))
+    (let* ((proc (apply 'start-process
+                        (append '("hurl") `(,buf-name) '("hurl")
+                                (split-string-shell-command args)
+                                '("--color") `(,(buffer-file-name)))))
            (proc-buffer (process-buffer proc)))
       (with-current-buffer proc-buffer
         (display-buffer proc-buffer)
         (beginning-of-line)
         (visual-line-mode)
         (require 'shell)
-        (shell-mode)
+        (hurl-response-mode)
         (set-process-filter proc 'comint-output-filter)
         )
       )
@@ -390,5 +430,21 @@ With two (or more) prefix args, prompt for arbitrary additional options to hurl 
         (define-key map (kbd "C-c C-c") 'hurl-mode-send-request)
         map))
 
+(setq hurl-response-mode-map
+      (let ((map (make-sparse-keymap)))
+        (define-key map (kbd "q") #'quit-window)
+        (define-key map (kbd "TAB") #'outline-toggle-children)
+        (define-key map (kbd "<tab>") #'outline-toggle-children)
+        
+        (define-key map (kbd "S-TAB") #'outline-cycle-buffer)
+        (define-key map (kbd "S-<tab>") #'outline-cycle-buffer)
+
+        (define-key map (kbd "C-c ]") #'outline-next-heading)
+        (define-key map (kbd "C-c >") #'outline-next-heading)
+        
+        (define-key map (kbd "C-c [") #'outline-previous-heading)
+        (define-key map (kbd "C-c <") #'outline-previous-heading)
+        map))
 
 (provide 'hurl-mode)
+;;; hurl-mode.el ends here
