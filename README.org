@@ -15,6 +15,11 @@ POST {{host}}
 ,#+end_src
 #+end_example
 
+** hurl-response buffer
+There's a separate mode for the hurl response buffer. If you run *C-c C-c* for  =hurl-mode-send-request= this will execute the hurl file in very-verbose mode.
+
+Outline-minor-mode is automatically enabled with some custom outline methods. This makes it easy to navigate and see all the responses from the very-verbose output.
+
 ** screenshot
 [[file:screenshot.png]]
 
