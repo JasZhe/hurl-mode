@@ -346,6 +346,17 @@ since we don't need to care about the other block types in org."
     (modify-syntax-entry ?\n ">#" table)
     table))
 
+(defconst hurl-mode-options
+  '("aws-sigv4" "cacert" "cert" "color" "compressed" "connect-timeout" "connect-to"
+        "continue-on-error" "cookie" "cookie-jar" "delay" "error-format" "file-root"
+        "glob" "http1.0" "http1.1" "http2" "http3" "ignore-asserts" "include" "insecure"
+        "interactive" "ipv4" "ipv6" "json" "key" "location" "location-trusted" "max-redirs"
+        "max-time" "no-color" "no-output" "noproxy" "output" "path-as-is" "proxy"
+        "report-html" "report-junit" "report-tap" "resolve" "retry" "retry-interval"
+        "ssl-no-revoke" "test" "to-entry" "unix-socket" "user" "user-agent" "variable"
+        "variables-file" "verbose" "very-verbose" "help" "version")
+  )
+
 ;;;###autoload
 (define-derived-mode hurl-mode text-mode "Hurl"
   "Enable hurl mode."
@@ -370,8 +381,7 @@ since we don't need to care about the other block types in org."
        (string-match-p (car h) (match-string 0)))
      hurl-outline-heading-alist
      ))
-   (- (match-end 0) (match-beginning 0)))
-  )
+   (- (match-end 0) (match-beginning 0))))
 
 ;;;###autoload
 (define-derived-mode hurl-response-mode shell-mode "HurlRes"
@@ -390,8 +400,36 @@ Each req/resp body is also its own block."
           ("\\* Response body:" . 2)
           ))
   (setq-local outline-level #'hurl-response-outline-level)
-  (outline-minor-mode)
-  )
+  (outline-minor-mode))
+
+(defcustom hurl-variables-file ".hurl-variables"
+  "Name of variables file to automatically use in hurl requests."
+  :type '(string))
+
+(defun hurl-options-completion-at-point ()
+  (let* ((bds (bounds-of-thing-at-point 'word))
+         (start (car bds))
+         (end (cdr bds)))
+    (message "%s %s" start end)
+    (if (and start end)
+        (list start end hurl-mode-options . nil)
+      (list (point) (point) hurl-mode-options . nil)
+      )))
+
+(defun hurl--read-args ()
+  "Read user input until empty.
+Prefixes every string with -- for convenience."
+  (let ((option)
+        (all-options ""))
+    (while (not (string-empty-p
+                 (setq option (minibuffer-with-setup-hook
+                                  (lambda ()
+                                    (add-hook 'completion-at-point-functions
+                                              #'hurl-options-completion-at-point nil t))
+                                (read-string "cli option (empty input finishes): --")))))
+      (setq all-options (concat all-options " --" option))
+      )
+    all-options))
 
 (defun hurl-mode-send-request (arg)
   "Simple thin wrapper which sends the contents of the current file to hurl.
@@ -401,9 +439,11 @@ With three prefix ARGs, prompt for arbitrary additional options to hurl command.
   (interactive "P")
   (let ((args (concat (cond ((equal arg '(4)) "--test")
                             ((equal arg '(16)) "--very-verbose")
-                            ((equal arg '(64)) (read-string "additional cli options: "))
-
-                            (t ""))))
+                            ((equal arg '(64)) (hurl--read-args))
+                            (t ""))
+                      (when (file-exists-p hurl-variables-file)
+                        (concat " --variables-file " hurl-variables-file))
+                      ))
         (buf-name "*hurl-response*"))
     (save-buffer)
     ;; stole this from:
