@@ -5,6 +5,12 @@ but can be used outside emacs and also has some additional testing utilities bui
 * Usage
 A simple wrapper for the cli command is provided via: ~hurl-mode-send-request~ with a shortcut of =C-c C-c=
 
+With one prefix arg, will run the hurl file with =--test=
+
+If a hurl variable file, =hurl-variable-file= (default is =.hurl-variables=) exists in the same directory as the .hurl file we're executing, the variables will automatically be added to the request.
+
+The hurl response buffer, if run with =--very-verbose= (via 2 prefix args) has some basic folding via some simple outline mode heading regexes.
+
 ** org babel integration
 Simple org babel implementation that passes the src block vars into the --variable option for the cli command
 
