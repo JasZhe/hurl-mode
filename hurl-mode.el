@@ -449,10 +449,12 @@ With three prefix ARGs, prompt for arbitrary additional options to hurl command.
     ;; stole this from:
     ;; https://emacs.stackexchange.com/questions/16617/interpret-terminal-escape-codes-in-generic-process-output
     (when-let ((buf (get-buffer buf-name))) (kill-buffer buf))
-    (let* ((proc (apply 'start-process
-                        (append '("hurl") `(,buf-name) '("hurl")
-                                (split-string-shell-command args)
-                                `(,(buffer-file-name)))))
+    (let* ((jq-filtering
+            ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
+            (when (executable-find "jq") " | jq -R '. as $line | try (fromjson) catch $line'"))
+           (proc (apply 'start-process-shell-command
+                        (append '("hurl") `(,buf-name)
+                                `(,(concat "hurl " args " " (buffer-file-name) jq-filtering)))))
            (proc-buffer (process-buffer proc)))
       (with-current-buffer proc-buffer
         (display-buffer proc-buffer)
