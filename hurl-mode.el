@@ -430,32 +430,39 @@ Prefixes every string with -- for convenience."
       (setq all-options (concat all-options " --" option))
       )
     all-options))
-
-(defun hurl-mode-send-request (arg)
-  "Simple thin wrapper which sends the contents of the current file to hurl.
-With one prefix ARG, execute with the --test option.
-With two prefix ARGs, execute with --very-verbose.
-With three prefix ARGs, prompt for arbitrary additional options to hurl command."
-  (interactive "P")
-  (let ((args (concat (cond ((equal arg '(4)) "--test")
-                            ((equal arg '(16)) "--very-verbose")
-                            ((equal arg '(64)) (hurl--read-args))
-                            (t ""))
+    
+(defun hurl-mode--send-request (&optional args file-name proc-sentinel)
+  (let ((args (concat args
+                      (when (and current-prefix-arg
+                                 (>= (car current-prefix-arg) 4))
+                        " --very-verbose")
+                      (when (and current-prefix-arg
+                                 (>= (car current-prefix-arg) 16))
+                        (hurl--read-args))
                       (when (file-exists-p hurl-variables-file)
-                        (concat " --variables-file " hurl-variables-file))
-                      ))
+                        (concat " --variables-file " hurl-variables-file))))
         (buf-name "*hurl-response*"))
     (save-buffer)
     ;; stole this from:
     ;; https://emacs.stackexchange.com/questions/16617/interpret-terminal-escape-codes-in-generic-process-output
     (when-let ((buf (get-buffer buf-name))) (kill-buffer buf))
-    (let* ((jq-filtering
-            ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
-            (when (executable-find "jq") " | jq -R '. as $line | try (fromjson) catch $line'"))
+    ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
+    (let* ((jq-filtering-1 (when (executable-find "jq")
+                             " | jq -R '. as $line | try (fromjson) catch $line'"))
+           (jq-filtering (if (and current-prefix-arg
+                                  (>= (car current-prefix-arg) 64))
+                             (minibuffer-with-setup-hook
+                                 (lambda () (insert jq-filtering-1))
+                               (read-string "Edit jq command: "))
+                           jq-filtering-1))
            (proc (apply 'start-process-shell-command
                         (append '("hurl") `(,buf-name)
-                                `(,(concat "hurl " args " " (buffer-file-name) jq-filtering)))))
+                                `(,(concat "hurl " args " " (if file-name file-name (buffer-file-name)) jq-filtering)))))
            (proc-buffer (process-buffer proc)))
+
+      (when proc-sentinel
+        (set-process-sentinel proc proc-sentinel))
+      
       (with-current-buffer proc-buffer
         (display-buffer proc-buffer)
         (beginning-of-line)
@@ -467,11 +474,69 @@ With three prefix ARGs, prompt for arbitrary additional options to hurl command.
       )
     ))
 
+
+(defun hurl-mode-send-request-file (arg)
+  "Simple thin wrapper which sends the contents of the current file to hurl.
+With one prefix ARGs, execute with --very-verbose.
+With two, also prompt for arbitrary additional options to hurl command.
+With three, also prompt to edit the jq command filtering"
+  (interactive "P")
+  (hurl-mode--send-request))
+
+(defconst hurl-mode--temp-file-name ".temp-request.hurl")
+(defun hurl-mode-send-request-single (arg)
+  "Simple thin wrapper which sends the request at point to hurl.
+With one prefix ARGs, execute with --very-verbose.
+With two, also prompt for arbitrary additional options to hurl command.
+With three, also prompt to edit the jq command filtering"
+  (interactive "P")
+  
+  (let* ((beg (save-excursion
+               (forward-line)
+               (re-search-backward hurl-mode--http-method-regexp)
+               (line-beginning-position)))
+        (end (save-excursion
+               (forward-line)
+               ;; if we're at the last request in the file, there's no next to search forward for
+               (re-search-forward hurl-mode--http-method-regexp nil 1)
+               (line-beginning-position)))
+        (req (buffer-substring-no-properties beg end)))
+    (write-region beg end hurl-mode--temp-file-name)
+    (hurl-mode--send-request nil hurl-mode--temp-file-name
+                             (lambda (p e)
+                               (when (not (equal (process-status p) 'run))
+                                 (delete-file hurl-mode--temp-file-name))))
+    )
+  )
+
+
+(defun hurl-mode-test-request-file (arg)
+  "Hurl wrapper function to send file for testing.
+With one prefix ARGs, execute with --very-verbose.
+With two, also prompt for arbitrary additional options to hurl command.
+With three, also prompt to edit the jq command filtering"
+  (interactive "P")
+  (hurl-mode--send-request "--test")
+  )
+
+(defun hurl-mode-test-request-single (arg)
+  "Hurl wrapper function to send the request at point for testing.
+With one prefix ARGs, execute with --very-verbose.
+With two, also prompt for arbitrary additional options to hurl command.
+With three, also prompt to edit the jq command filtering"
+  (interactive "P")
+  (hurl-mode--send-request "--test")
+  )
+
 (setq hurl-mode-map
       (let ((map (make-sparse-keymap)))
         (define-key map (kbd "C-M-i") nil)
         (define-key map (kbd "M-<tab>") nil)
-        (define-key map (kbd "C-c C-c") 'hurl-mode-send-request)
+        (define-key map (kbd "C-c T") 'hurl-mode-test-request-file)
+        (define-key map (kbd "C-c t") 'hurl-mode-test-request-single)
+        
+        (define-key map (kbd "C-c X") 'hurl-mode-send-request-file)
+        (define-key map (kbd "C-c x") 'hurl-mode-send-request-single)
         map))
 
 (setq hurl-response-mode-map

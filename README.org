@@ -21,10 +21,17 @@ POST {{host}}
 ,#+end_src
 #+end_example
 
-** hurl-response buffer
-There's a separate mode for the hurl response buffer. If you run *C-c C-c* for  =hurl-mode-send-request= this will execute the hurl file in very-verbose mode.
+** Commands to send request
+- =C-c x= will execute the hurl request at point in a temporary file created using the same directory as the original.
+- =C-c X= will execute the entire hurl file.
+- =C-c T= will execute the hurl file in test mode.
 
 If =jq= is available, then it will automatically be used to format what json exists in the response.
+
+There's a separate mode for the hurl response buffer. If you execute any of the commands with:
+- one or more prefix args, =--very-verbose= option will be added.
+- With two or more, prompt for additional cli args.
+- With three or more, edit the =jq= command that will be used to filter/format the output.
 
 Outline-minor-mode is automatically enabled with some custom outline methods. This makes it easy to navigate and see all the responses from the very-verbose output.
 
