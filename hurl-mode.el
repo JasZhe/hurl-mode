@@ -360,6 +360,10 @@ since we don't need to care about the other block types in org."
 ;;;###autoload
 (define-derived-mode hurl-mode text-mode "Hurl"
   "Enable hurl mode."
+  ;; backward paragraph is set as the 'font-lock-mark-block-function see:
+  ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Other-Font-Lock-Variables.html
+  ;; and https://www.gnu.org/software/emacs/manual/html_node/elisp/Font-Lock-Basics.html
+  ;; this is same as org-set-font-lock-defaults
   (setq-local font-lock-defaults '(hurl-mode-keywords t nil nil backward-paragraph))
   (setq-local font-lock-multiline t)
   (setq-local comment-start "#")
