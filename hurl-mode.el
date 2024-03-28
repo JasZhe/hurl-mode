@@ -473,25 +473,23 @@ Prefixes every string with -- for convenience."
         (visual-line-mode)
         (require 'shell)
         (hurl-response-mode)
-        (set-process-filter proc 'comint-output-filter)
-        ;; WIP: right now we need to execute the request with the detailed view
-        ;; then we just do a simple regex search for "* Captures:" and grab the variables from there
-        ;; and write to the variables file
-        (save-excursion
-          (when (search-backward "Captures:" nil t)
-            ;; match beginning *, then a group for .* for the capture name, a colon, a space and another .* group for the value
-            (while (re-search-forward "\\* \\(.*\\).*: \\(.*\\)" nil t)
-              (let ((variable (concat (match-string 1) "=" (match-string 2))))
-                (with-temp-file hurl-variables-file
-                  (insert variable))
-                )
-              )
-            )
-          )
-        )
-      )
-    ))
+        (set-process-filter proc 'hurl-response--save-captures-proc-filter)))))
 
+(defun hurl-response--save-captures-proc-filter (proc string)
+  ;; WIP: right now we need to execute the request with the detailed view
+  ;; then we just do a simple regex search for "* Captures:" and grab the variables from there
+  ;; and write to the variables file
+  (with-current-buffer (process-buffer proc)
+    (save-excursion
+      (when (search-backward "Captures:" nil t)
+        ;; match beginning *, then a group for .* for the capture name, a colon, a space and another .* group for the value
+        (let ((hurl-captures ""))
+          (while (re-search-forward "\\* \\(.*\\).*: \\(.*\\)" nil t)
+            (let ((variable (concat (match-string 1) "=" (match-string 2) "\n")))
+              (setq hurl-captures (concat hurl-captures variable))))
+          (with-temp-file hurl-variables-file
+            (insert hurl-captures))))))
+  (comint-output-filter proc string))
 
 (defun hurl-mode-send-request-file (arg)
   "Simple thin wrapper which sends the contents of the current file to hurl.
@@ -520,12 +518,9 @@ With three, also prompt to edit the jq command filtering"
                (line-beginning-position)))
         (req (buffer-substring-no-properties beg end)))
     (write-region beg end hurl-mode--temp-file-name)
-    (hurl-mode--send-request nil hurl-mode--temp-file-name
-                             (lambda (p e)
-                               (when (not (equal (process-status p) 'run))
-                                 (delete-file hurl-mode--temp-file-name))))
-    )
-  )
+    (hurl-mode--send-request
+     nil hurl-mode--temp-file-name
+     (lambda (p e) (when (not (process-live-p p)) (delete-file hurl-mode--temp-file-name))))))
 
 
 (defun hurl-mode-test-request-file (arg)
