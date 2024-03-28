@@ -474,6 +474,20 @@ Prefixes every string with -- for convenience."
         (require 'shell)
         (hurl-response-mode)
         (set-process-filter proc 'comint-output-filter)
+        ;; WIP: right now we need to execute the request with the detailed view
+        ;; then we just do a simple regex search for "* Captures:" and grab the variables from there
+        ;; and write to the variables file
+        (save-excursion
+          (when (search-backward "Captures:" nil t)
+            ;; match beginning *, then a group for .* for the capture name, a colon, a space and another .* group for the value
+            (while (re-search-forward "\\* \\(.*\\).*: \\(.*\\)" nil t)
+              (let ((variable (concat (match-string 1) "=" (match-string 2))))
+                (with-temp-file hurl-variables-file
+                  (insert variable))
+                )
+              )
+            )
+          )
         )
       )
     ))
