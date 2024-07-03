@@ -514,6 +514,13 @@ Prefixes every string with -- for convenience."
 ;; ----------------------- TESTING SOME PROCESS FILTERING ----------------------------
 ;;
 
+
+(defvar hurl-response--output-buffer-name "*hurl-temp-output*"
+  "Name of temporary buffer to hold process output for parsing later.")
+
+(defvar hurl-response--process-buffer-name "*hurl-process*"
+  "Name of buffer where the hurl process runs in.")
+
 (defun escape-string (str)
   "Escape special characters in STR."
   (replace-regexp-in-string
@@ -529,13 +536,15 @@ Prefixes every string with -- for convenience."
        (_ match)))
    str t t))
 
-(defun hurl-response--parse-and-filter-output ()
+(defun hurl-response--parse-and-filter-output (&optional variables-filename)
   "Filters the hurl --verbose output STR from PROC to what we care about.
-Namely, response headers/body, and captures (to save to variables file)."
+Namely, response headers/body, and captures (to save to variables file).
+If VARIABLES-FILENAME is set, save the captures as hurl-variables to that file.
+Otherwise use the default `hurl-variables-file'."
 
   ;; filter using capture groups, anychar is used because we want newlines
   ;; there's always a Response and Response body luckily
-  (let* ((str (with-current-buffer "*hurl-temp-output*" (buffer-string)))
+  (let* ((str (with-current-buffer hurl-response--output-buffer-name (buffer-string)))
          (resp1 (progn
                   (string-match (rx-to-string `(: bol (group "* Response:" (0+ anychar) "* Response body:")
                                                 (group (0+ anychar))
@@ -574,23 +583,8 @@ Namely, response headers/body, and captures (to save to variables file)."
                                                            (substring s (match-beginning 1) (match-end 1)))
                                                          )
                                                  (split-string captures1 "\n"))))))
-         (full-output (with-temp-buffer
-                        (insert "Captures:\n")
-                        (when captures
-                          (seq-do
-                           (lambda (e)
-                             (with-temp-file hurl-variables-file
-                               (insert (mapconcat #'string-trim e "=") "\n"))
-                             (insert (mapconcat #'string-trim e "=") "\n"))
-                           captures)
-                          )
-                        (insert "\n\n" resp-head "\n")
-                        (insert formatted-resp)
-                        (font-lock-ensure)
-                        (buffer-string)
-                        ))
          )
-    (with-current-buffer (get-buffer-create "*hurl-response*")
+    (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
       (delete-region (point-min) (point-max))
       (hurl-response-mode)
       (insert "Captures:\n")
@@ -609,21 +603,19 @@ Namely, response headers/body, and captures (to save to variables file)."
   )
 
 (defun hurl-response--verbose-filter (proc str)
-  (with-current-buffer (get-buffer-create "*hurl-temp-output*")
+  (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
     (shell-mode)
     (insert str)))
 
 
 (defun hurl-mode--send-request-internal-testing (&optional args file-name proc-sentinel)
-  (let ((args " --very-verbose")
-        (buf-name "*hurl-response*"))
+  (let ((args " --very-verbose"))
     (save-buffer)
-    (when-let ((buf (get-buffer buf-name))) (kill-buffer buf))
+    (when-let ((buf (get-buffer hurl-response--process-buffer-name))) (kill-buffer buf))
     ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
-    (let* ((jq-filtering "")
-           (proc (apply 'start-process-shell-command
-                        (append '("hurl") `("hurl-proc")
-                                `(,(concat "hurl " args " " (if file-name file-name (buffer-file-name)) jq-filtering)))))
+    (let* ((proc (apply 'start-process-shell-command
+                        (append '("hurl") `(,hurl-response--process-buffer-name)
+                                `(,(concat "hurl " args " " (if file-name file-name (buffer-file-name)))))))
            (proc-buffer (process-buffer proc)))
 
       (when proc-sentinel
@@ -653,11 +645,11 @@ With three, also prompt to edit the jq command filtering"
     (hurl-mode--send-request-internal-testing
      nil hurl-mode--temp-file-name
      (lambda (p e) (when (not (process-live-p p))
-                (with-current-buffer "*hurl-temp-output*"
+                (with-current-buffer hurl-response--output-buffer-name
                   (ansi-color-apply-on-region (point-min) (point-max)))
                 (hurl-response--parse-and-filter-output)
-                (kill-buffer "*hurl-temp-output*")
-                (display-buffer "*hurl-response*")
+                (kill-buffer hurl-response--output-buffer-name)
+                (display-buffer hurl-response--process-buffer-name)
                 (delete-file hurl-mode--temp-file-name))))))
 
 
