@@ -136,7 +136,7 @@
   '("[QueryStringParams]" "[FormParams]" "[MultipartFormData]" "[BasicAuth]" "[Cookies]" "[Asserts]" "[Captures]" "[Options]"))
 (defconst hurl-mode--section-header-regexp
   (rx-to-string `(: bol
-                    (or ,@hurl-mode--section-header-keywords))))
+                  (or ,@hurl-mode--section-header-keywords))))
 
 (defconst hurl-mode--expected-response-regexp
   (rx-to-string `(: bol
@@ -197,22 +197,22 @@ since we don't need to care about the other block types in org."
                 (lang-mode (org-src-get-lang-mode lang))
                 (my-buffer (current-buffer)))
             (if (fboundp lang-mode)
-              ;; for debugging purposes having a real (hidden) buffer to see what's being fontified is nice (org does this)
-              ;; but we can easily switch to just with-temp-buffer if we no longer want this
-              (with-current-buffer (get-buffer-create (format " *hurl fontify buffer:%s*" lang-mode))
-                (erase-buffer)
-                (insert string " ")
-                (funcall lang-mode)
-                (font-lock-ensure)
-                (let ((pos (point-min)) next)
-                  (while (setq next (next-property-change pos))
-                    (dolist (prop (append '(font-lock-face face) font-lock-extra-managed-props))
-                      (let ((new-prop (get-text-property pos prop)))
-                        (when (not (eq prop 'invisible))
-                          (put-text-property (+ block-start (1- pos)) (1- (+ block-start next)) prop new-prop my-buffer)))
-                      )
-                    (setq pos next))
-                  ))
+                ;; for debugging purposes having a real (hidden) buffer to see what's being fontified is nice (org does this)
+                ;; but we can easily switch to just with-temp-buffer if we no longer want this
+                (with-current-buffer (get-buffer-create (format " *hurl fontify buffer:%s*" lang-mode))
+                  (erase-buffer)
+                  (insert string " ")
+                  (funcall lang-mode)
+                  (font-lock-ensure)
+                  (let ((pos (point-min)) next)
+                    (while (setq next (next-property-change pos))
+                      (dolist (prop (append '(font-lock-face face) font-lock-extra-managed-props))
+                        (let ((new-prop (get-text-property pos prop)))
+                          (when (not (eq prop 'invisible))
+                            (put-text-property (+ block-start (1- pos)) (1- (+ block-start next)) prop new-prop my-buffer)))
+                        )
+                      (setq pos next))
+                    ))
               ;; otherwise if lang not found just fontify with body face
               (add-text-properties block-start block-end `(font-lock-fontified t font-lock-multiline t face hurl-mode-body-face))
               ()
@@ -250,27 +250,27 @@ since we don't need to care about the other block types in org."
 
 (defun hurl--double-string-arg-filter-matcher ()
   (list
-    (rx-to-string `(: (group (or ,@hurl-mode--double-string-arg-filters)) blank
-                    (group ,string-arg-with-escaped-quote) blank
-                    (group ,string-arg-with-escaped-quote)))
-    nil
-    '(beginning-of-line)
-    '(1 'hurl-mode-filter-face t)
-    '(2 'hurl-mode-query-arg-face t)
-    '(3 'hurl-mode-query-arg-face t)
-    )
+   (rx-to-string `(: (group (or ,@hurl-mode--double-string-arg-filters)) blank
+                   (group ,string-arg-with-escaped-quote) blank
+                   (group ,string-arg-with-escaped-quote)))
+   nil
+   '(beginning-of-line)
+   '(1 'hurl-mode-filter-face t)
+   '(2 'hurl-mode-query-arg-face t)
+   '(3 'hurl-mode-query-arg-face t)
+   )
   )
 
 (defun hurl--int-arg-filter-matcher ()
   (list
-    (rx-to-string `(: (group (or ,@hurl-mode--single-int-arg-filters))
-                    blank
-                    (group (+ digit))))
-    nil
-    '(beginning-of-line)
-    '(1 'hurl-mode-filter-face t)
-    '(2 'font-lock-constant-face t)
-    )
+   (rx-to-string `(: (group (or ,@hurl-mode--single-int-arg-filters))
+                   blank
+                   (group (+ digit))))
+   nil
+   '(beginning-of-line)
+   '(1 'hurl-mode-filter-face t)
+   '(2 'font-lock-constant-face t)
+   )
   )
 
 (defun hurl--no-arg-filter-matcher ()
@@ -348,13 +348,13 @@ since we don't need to care about the other block types in org."
 
 (defconst hurl-mode-options
   '("aws-sigv4" "cacert" "cert" "color" "compressed" "connect-timeout" "connect-to"
-        "continue-on-error" "cookie" "cookie-jar" "delay" "error-format" "file-root"
-        "glob" "http1.0" "http1.1" "http2" "http3" "ignore-asserts" "include" "insecure"
-        "interactive" "ipv4" "ipv6" "json" "key" "location" "location-trusted" "max-redirs"
-        "max-time" "no-color" "no-output" "noproxy" "output" "path-as-is" "proxy"
-        "report-html" "report-junit" "report-tap" "resolve" "retry" "retry-interval"
-        "ssl-no-revoke" "test" "to-entry" "unix-socket" "user" "user-agent" "variable"
-        "variables-file" "verbose" "very-verbose" "help" "version")
+    "continue-on-error" "cookie" "cookie-jar" "delay" "error-format" "file-root"
+    "glob" "http1.0" "http1.1" "http2" "http3" "ignore-asserts" "include" "insecure"
+    "interactive" "ipv4" "ipv6" "json" "key" "location" "location-trusted" "max-redirs"
+    "max-time" "no-color" "no-output" "noproxy" "output" "path-as-is" "proxy"
+    "report-html" "report-junit" "report-tap" "resolve" "retry" "retry-interval"
+    "ssl-no-revoke" "test" "to-entry" "unix-socket" "user" "user-agent" "variable"
+    "variables-file" "verbose" "very-verbose" "help" "version")
   )
 
 ;;;###autoload
@@ -491,6 +491,158 @@ Prefixes every string with -- for convenience."
             (insert hurl-captures))))))
   (comint-output-filter proc string))
 
+;; ----------------------- TESTING SOME PROCESS FILTERING ----------------------------
+;;
+
+(defun escape-string (str)
+  "Escape special characters in STR."
+  (replace-regexp-in-string
+   "\\([\n\t\"\\{}]\\)"
+   (lambda (match)
+     (pcase match
+       ("{" "\\{")
+       ("}" "\\}")
+       ("\n" "\\n")
+       ("\t" "\\t")
+       ("\"" "\\\"")
+       ("\\" "\\\\")
+       (_ match)))
+   str t t))
+
+(defun hurl-response--parse-and-filter-output ()
+  "Filters the hurl --verbose output STR from PROC to what we care about.
+Namely, response headers/body, and captures (to save to variables file)."
+
+  ;; filter using capture groups, anychar is used because we want newlines
+  ;; there's always a Response and Response body luckily
+  (let* ((str (with-current-buffer "*hurl-temp-output*" (buffer-string)))
+         (resp1 (progn
+                  (string-match (rx-to-string `(: bol (group "* Response:" (0+ anychar) "* Response body:")
+                                                (group (0+ anychar))
+                                                "* Timings:"))
+                                str)
+                  (substring str (match-beginning 2) (match-end 2))))
+         (resp-head (substring str (match-beginning 1) (match-end 1)))
+         ;; get rid of leading stars
+         (resp (mapconcat (lambda (s)
+                            (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
+                              (substring s (match-beginning 1) (match-end 1)))
+                            )
+                          (split-string resp1 "\n")
+                          " "))
+         (formatted-resp
+          (condition-case nil
+              (with-temp-buffer
+                (insert (shell-command-to-string (format "echo %s | jq -R '. as $line | try (fromjson) catch $line'" (escape-string resp))))
+                (buffer-substring (point-min) (point-max))
+                )
+            (error resp)))
+         ;; isn't always a capture though
+         (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
+                      (substring str (match-beginning 1) (match-end 1)))
+                    )
+         ;; mainly get rid of *'s, and convert the : to an = for the variables file
+         (captures (when captures1
+                     (cl-map 'list
+                             (lambda (s)
+                               (split-string s ":"))
+                             (seq-filter #'identity
+                                         ;; get rid of leading *'s
+                                         ;; TODO maybe we extract this part out cause its same code as for resp
+                                         (cl-map 'list (lambda (s)
+                                                         (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
+                                                           (substring s (match-beginning 1) (match-end 1)))
+                                                         )
+                                                 (split-string captures1 "\n"))))))
+         (full-output (with-temp-buffer
+                        (insert "Captures:\n")
+                        (when captures
+                          (seq-do
+                           (lambda (e)
+                             (with-temp-file hurl-variables-file
+                               (insert (mapconcat #'string-trim e "=") "\n"))
+                             (insert (mapconcat #'string-trim e "=") "\n"))
+                           captures)
+                          )
+                        (insert "\n\n" resp-head "\n")
+                        (insert formatted-resp)
+                        (font-lock-ensure)
+                        (buffer-string)
+                        ))
+         )
+    (with-current-buffer (get-buffer-create "*hurl-response*")
+      (delete-region (point-min) (point-max))
+      (hurl-response-mode)
+      (insert "Captures:\n")
+      (when captures
+        (seq-do
+         (lambda (e)
+           (with-temp-file hurl-variables-file
+             (insert (mapconcat #'string-trim e "=") "\n"))
+           (insert (mapconcat #'string-trim e "=") "\n"))
+         captures)
+        )
+      (insert "\n\n" resp-head "\n")
+      (insert formatted-resp)
+      )
+    )
+  )
+
+(defun hurl-response--verbose-filter (proc str)
+  (with-current-buffer (get-buffer-create "*hurl-temp-output*")
+    (shell-mode)
+    (insert str)))
+
+
+(defun hurl-mode--send-request-internal-testing (&optional args file-name proc-sentinel)
+  (let ((args " --very-verbose")
+        (buf-name "*hurl-response*"))
+    (save-buffer)
+    (when-let ((buf (get-buffer buf-name))) (kill-buffer buf))
+    ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
+    (let* ((jq-filtering "")
+           (proc (apply 'start-process-shell-command
+                        (append '("hurl") `("hurl-proc")
+                                `(,(concat "hurl " args " " (if file-name file-name (buffer-file-name)) jq-filtering)))))
+           (proc-buffer (process-buffer proc)))
+
+      (when proc-sentinel
+        (set-process-sentinel proc proc-sentinel))
+
+      (with-current-buffer proc-buffer
+        (set-process-filter proc 'hurl-response--verbose-filter)))))
+
+
+(defun hurl-mode-send-request-single--internal-testing (arg)
+  "Simple thin wrapper which sends the request at point to hurl.
+With one prefix ARGs, execute with --very-verbose.
+With two, also prompt for arbitrary additional options to hurl command.
+With three, also prompt to edit the jq command filtering"
+  (interactive "P")
+  (let* ((beg (save-excursion
+                (forward-line)
+                (re-search-backward hurl-mode--http-method-regexp)
+                (line-beginning-position)))
+         (end (save-excursion
+                (forward-line)
+                ;; if we're at the last request in the file, there's no next to search forward for
+                (re-search-forward hurl-mode--http-method-regexp nil 1)
+                (line-beginning-position)))
+         (req (buffer-substring-no-properties beg end)))
+    (write-region beg end hurl-mode--temp-file-name)
+    (hurl-mode--send-request-internal-testing
+     nil hurl-mode--temp-file-name
+     (lambda (p e) (when (not (process-live-p p))
+                (with-current-buffer "*hurl-temp-output*"
+                  (ansi-color-apply-on-region (point-min) (point-max)))
+                (hurl-response--parse-and-filter-output)
+                (kill-buffer "*hurl-temp-output*")
+                (display-buffer "*hurl-response*")
+                (delete-file hurl-mode--temp-file-name))))))
+
+
+;; ----------------------- TESTING SOME PROCESS FILTERING ----------------------------
+
 (defun hurl-mode-send-request-file (arg)
   "Simple thin wrapper which sends the contents of the current file to hurl.
 With one prefix ARGs, execute with --very-verbose.
@@ -506,17 +658,37 @@ With one prefix ARGs, execute with --very-verbose.
 With two, also prompt for arbitrary additional options to hurl command.
 With three, also prompt to edit the jq command filtering"
   (interactive "P")
-  
   (let* ((beg (save-excursion
-               (forward-line)
-               (re-search-backward hurl-mode--http-method-regexp)
-               (line-beginning-position)))
-        (end (save-excursion
-               (forward-line)
-               ;; if we're at the last request in the file, there's no next to search forward for
-               (re-search-forward hurl-mode--http-method-regexp nil 1)
-               (line-beginning-position)))
-        (req (buffer-substring-no-properties beg end)))
+                (forward-line)
+                (re-search-backward hurl-mode--http-method-regexp)
+                (line-beginning-position)))
+         (end (save-excursion
+                (forward-line)
+                ;; if we're at the last request in the file, there's no next to search forward for
+                (re-search-forward hurl-mode--http-method-regexp nil 1)
+                (line-beginning-position)))
+         (req (buffer-substring-no-properties beg end)))
+    (write-region beg end hurl-mode--temp-file-name)
+    (hurl-mode--send-request
+     nil hurl-mode--temp-file-name
+     (lambda (p e) (when (not (process-live-p p)) (delete-file hurl-mode--temp-file-name))))))
+
+(defun hurl-mode-send-request-in-region (arg)
+  "Simple thin wrapper which sends the request at point to hurl.
+With one prefix ARGs, execute with --very-verbose.
+With two, also prompt for arbitrary additional options to hurl command.
+With three, also prompt to edit the jq command filtering"
+  (interactive "P")
+  (let* ((beg (save-excursion
+                (forward-line)
+                (re-search-backward hurl-mode--http-method-regexp)
+                (line-beginning-position)))
+         (end (save-excursion
+                (forward-line)
+                ;; if we're at the last request in the file, there's no next to search forward for
+                (re-search-forward hurl-mode--http-method-regexp nil 1)
+                (line-beginning-position)))
+         (req (buffer-substring-no-properties beg end)))
     (write-region beg end hurl-mode--temp-file-name)
     (hurl-mode--send-request
      nil hurl-mode--temp-file-name
