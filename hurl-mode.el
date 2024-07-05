@@ -169,7 +169,7 @@
 Essentially creates a temporary buffer with the specified major mode and inserts the request body text into it.
 Then we can copy the font properties from that temporary buffer to our real hurl buffer.
 
-This is basically a simplified version of the bomination of \"org-fontify-meta-lines-and-blocks-1\" and \"org-src-font-lock-fontify-block\"
+This is basically a simplified version of the combination of `org-fontify-meta-lines-and-blocks-1' and `org-src-font-lock-fontify-block'
 since we don't need to care about the other block types in org."
   (when (re-search-forward
          (rx bol (group "```"
@@ -357,6 +357,25 @@ since we don't need to care about the other block types in org."
     "variables-file" "verbose" "very-verbose" "help" "version")
   )
 
+(defun hurl-inside-block-p ()
+  "Return t if inside hurl body block, nil otherwise.
+If point is on the block delimiters themselves, return nil."
+  ;;(rx bol (group "```" (group (zero-or-more (any "a-zA-Z"))))))
+  (let ((block-start (save-excursion (re-search-backward "```") (point)))
+        ;; need the end-of-line here cause we don't want to return true when point is ON the block delimiter
+        (block-end (save-excursion (end-of-line) (re-search-forward "```") (point)))
+        (prev-req (save-excursion (re-search-backward hurl-mode--http-method-regexp) (point)))
+        (next-req (save-excursion (re-search-forward hurl-mode--http-method-regexp) (point)))
+        )
+    (and (> block-start prev-req) (< block-end next-req))))
+
+(defun hurl-indent-line ()
+  "Indent line using `js-indent-line' if we're inside a block. Otherwise do nothing.
+TODO: capture the block lang, and have some mapping of langs to indent functions."
+  (if (hurl-inside-block-p)
+      (js-indent-line)
+    'noindent))
+
 ;;;###autoload
 (define-derived-mode hurl-mode text-mode "Hurl"
   "Enable hurl mode."
@@ -369,7 +388,8 @@ since we don't need to care about the other block types in org."
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
   ;; honestly I think this works good enough for us and its built in without us doing anything crazy
-  (setq-local indent-line-function 'js-indent-line)
+  (setq-local indent-line-function 'hurl-indent-line)
+  (setq-local js-indent-level 2)
   )
 
 ;; so we don't get auto ` pairing if smartparens mode exists
@@ -390,7 +410,7 @@ since we don't need to care about the other block types in org."
 ;;;###autoload
 (define-derived-mode hurl-response-mode shell-mode "HurlRes"
   "Mode for the hurl response buffer.
-\"outline-minor-mode\" is enabled in this buffer.
+`outline-minor-mode' is enabled in this buffer.
 Each hurl request is its own block.
 Each req/resp body is also its own block."
   (setq-local outline-blank-line t)
