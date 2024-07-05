@@ -525,7 +525,12 @@ Otherwise use the default `hurl-variables-file'."
          (formatted-resp
           (condition-case nil
               (with-temp-buffer
-                (insert (shell-command-to-string (format "echo %s | jq -R '. as $line | try (fromjson) catch $line'" (escape-string resp))))
+                (let ((jq-command (executable-find "jq")))
+                  (if jq-command
+                      (insert (shell-command-to-string (format "echo %s | %s -R '. as $line | try (fromjson) catch $line'"
+                                                               (escape-string resp)
+                                                               jq-command)))
+                    (insert resp)))
                 (buffer-substring (point-min) (point-max))
                 )
             (error resp)))
