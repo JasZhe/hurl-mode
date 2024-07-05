@@ -387,9 +387,11 @@ TODO: capture the block lang, and have some mapping of langs to indent functions
   (setq-local font-lock-multiline t)
   (setq-local comment-start "#")
   (setq-local comment-start-skip "#+[\t ]*")
-  ;; honestly I think this works good enough for us and its built in without us doing anything crazy
   (setq-local indent-line-function 'hurl-indent-line)
   (setq-local js-indent-level 2)
+  ;; HACK: for some reason font lock is broken when there are comments after
+  ;; reverting the buffer, font-lock-update seems to fix it
+  (add-hook 'after-revert-hook (lambda () (font-lock-update)) nil t)
   )
 
 ;; so we don't get auto ` pairing if smartparens mode exists
