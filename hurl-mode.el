@@ -539,6 +539,7 @@ Otherwise use the default `hurl-variables-file'."
                       (substring str (match-beginning 1) (match-end 1)))
                     )
          ;; mainly get rid of *'s, and convert the : to an = for the variables file
+         ;; becomes a list of name to val
          (captures (when captures1
                      (cl-map 'list
                              (lambda (s)
@@ -557,12 +558,27 @@ Otherwise use the default `hurl-variables-file'."
       (hurl-response-mode)
       (insert "Captures:\n")
       (when captures
-        (seq-do
-         (lambda (e)
-           (with-temp-file hurl-variables-file
-             (insert (mapconcat #'string-trim e "=") "\n"))
-           (insert (mapconcat #'string-trim e "=") "\n"))
-         captures)
+        (with-temp-file hurl-variables-file
+          (insert-file-contents hurl-variables-file)
+          (seq-do
+           (lambda (e)
+             ;; reuse variables file and replace values if needed
+             (save-excursion
+               (goto-char (point-min))
+               (message "name %s" (concat (string-trim (car e)) "="))
+               (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
+                 (message "found; delete line")
+                 (delete-line)))
+             (insert (mapconcat #'string-trim e "=") "\n")
+
+             ;; HACK: go back to the response buffer and insert there as well
+             (with-current-buffer (get-buffer-create hurl-response--buffer-name)
+               (insert (mapconcat #'string-trim e "=") "\n")
+               )
+             )
+           captures
+           )
+          )
         )
       (insert "\n\n" resp-head "\n")
       (insert formatted-resp)
@@ -577,18 +593,21 @@ Otherwise use the default `hurl-variables-file'."
 
 
 (defun hurl-mode--send-request (&optional args file-name proc-sentinel)
-  (let ((args (concat args
+  (let* ((args (concat args
                       " --very-verbose"
                       (when current-prefix-arg
                         (hurl--read-args))
                       (when (file-exists-p hurl-variables-file)
-                        (concat " --variables-file " hurl-variables-file)))))
+                        (concat " --variables-file " hurl-variables-file))))
+        (cmd (concat "hurl" args " " (if file-name file-name (buffer-file-name)))))
+
+    (message "executing hurl cmd: %s" cmd)
     (save-buffer)
     (when-let ((buf (get-buffer hurl-response--process-buffer-name))) (kill-buffer buf))
     ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
     (let* ((proc (apply 'start-process-shell-command
                         (append '("hurl") `(,hurl-response--process-buffer-name)
-                                `(,(concat "hurl " args " " (if file-name file-name (buffer-file-name)))))))
+                                (list cmd))))
            (proc-buffer (process-buffer proc)))
 
       (when proc-sentinel
@@ -615,13 +634,13 @@ With three, also prompt to edit the jq command filtering"
                 (line-beginning-position)))
          (req (buffer-substring-no-properties beg end)))
     (write-region beg end hurl-mode--temp-file-name)
-    (hurl-mode--send-request-internal-testing
+    (kill-buffer hurl-response--output-buffer-name)
+    (hurl-mode--send-request
      nil hurl-mode--temp-file-name
      (lambda (p e) (when (not (process-live-p p))
                 (with-current-buffer hurl-response--output-buffer-name
                   (ansi-color-apply-on-region (point-min) (point-max)))
                 (hurl-response--parse-and-filter-output)
-                (kill-buffer hurl-response--output-buffer-name)
                 (display-buffer hurl-response--buffer-name)
                 (delete-file hurl-mode--temp-file-name))))))
 
