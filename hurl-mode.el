@@ -602,6 +602,7 @@ Otherwise use the default `hurl-variables-file'."
         (cmd (concat "hurl" args " " (if file-name file-name (buffer-file-name)))))
 
     (message "executing hurl cmd: %s" cmd)
+    (ignore-errors (kill-buffer hurl-response--output-buffer-name))
     (save-buffer)
     (when-let ((buf (get-buffer hurl-response--process-buffer-name))) (kill-buffer buf))
     ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
@@ -634,7 +635,6 @@ With three, also prompt to edit the jq command filtering"
                 (line-beginning-position)))
          (req (buffer-substring-no-properties beg end)))
     (write-region beg end hurl-mode--temp-file-name)
-    (kill-buffer hurl-response--output-buffer-name)
     (hurl-mode--send-request
      nil hurl-mode--temp-file-name
      (lambda (p e) (when (not (process-live-p p))
