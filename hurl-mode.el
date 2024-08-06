@@ -559,7 +559,9 @@ Otherwise use the default `hurl-variables-file'."
       (insert "Captures:\n")
       (when captures
         (with-temp-file hurl-variables-file
-          (insert-file-contents hurl-variables-file)
+          ;; if there's an existing hurl-variables-file, then we add the contents to the temp buffer
+          (when (file-exists-p hurl-variables-file)
+            (insert-file-contents hurl-variables-file))
           (seq-do
            (lambda (e)
              ;; reuse variables file and replace values if needed
