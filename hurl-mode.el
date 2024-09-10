@@ -660,7 +660,15 @@ With prefix arg, prompts for additional arguments to send to hurl."
   "Simple thin wrapper which sends the contents of the current file to hurl.
 With prefix arg, prompts for additional arguments to send to hurl."
   (interactive "P")
-  (hurl-mode--send-request))
+  (write-region (point-min) (point-max) hurl-mode--temp-file-name)
+  (hurl-mode--send-request nil hurl-mode--temp-file-name
+                           (lambda (p e) (when (not (process-live-p p))
+                                      (with-current-buffer hurl-response--output-buffer-name
+                                        (ansi-color-apply-on-region (point-min) (point-max)))
+                                      (hurl-response--parse-and-filter-output)
+                                      (display-buffer hurl-response--buffer-name)
+                                      (delete-file hurl-mode--temp-file-name)))
+                           ))
 
 
 (defun hurl-mode-test-request-file (arg)
