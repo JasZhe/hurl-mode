@@ -505,87 +505,99 @@ Namely, response headers/body, and captures (to save to variables file).
 If VARIABLES-FILENAME is set, save the captures as hurl-variables to that file.
 Otherwise use the default `hurl-variables-file'."
 
-  ;; filter using capture groups, anychar is used because we want newlines
-  ;; there's always a Response and Response body luckily
-  (let* ((str (with-current-buffer hurl-response--output-buffer-name (buffer-string)))
-         (resp1 (progn
-                  (string-match (rx-to-string `(: bol (group "* Response:" (0+ anychar) "* Response body:")
-                                                (group (0+ anychar))
-                                                "* Timings:"))
-                                str)
-                  (substring str (match-beginning 2) (match-end 2))))
-         (resp-head (substring str (match-beginning 1) (match-end 1)))
-         ;; get rid of leading stars
-         (resp (mapconcat (lambda (s)
-                            (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
-                              (substring s (match-beginning 1) (match-end 1)))
-                            )
-                          (split-string resp1 "\n")
-                          " "))
-         (formatted-resp
-          (condition-case nil
-              (with-temp-buffer
-                (let ((jq-command (executable-find "jq")))
-                  (if jq-command
-                      (insert (shell-command-to-string (format "echo %s | %s -R '. as $line | try (fromjson) catch $line'"
-                                                               (escape-string resp)
-                                                               jq-command)))
-                    (insert resp)))
-                (buffer-substring (point-min) (point-max))
-                )
-            (error resp)))
-         ;; isn't always a capture though
-         (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
-                      (substring str (match-beginning 1) (match-end 1)))
-                    )
-         ;; mainly get rid of *'s, and convert the : to an = for the variables file
-         ;; becomes a list of name to val
-         (captures (when captures1
-                     (cl-map 'list
-                             (lambda (s)
-                               (split-string s ":"))
-                             (seq-filter #'identity
-                                         ;; get rid of leading *'s
-                                         ;; TODO maybe we extract this part out cause its same code as for resp
-                                         (cl-map 'list (lambda (s)
-                                                         (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
-                                                           (substring s (match-beginning 1) (match-end 1)))
-                                                         )
-                                                 (split-string captures1 "\n"))))))
-         )
     (with-current-buffer (get-buffer-create hurl-response--buffer-name)
-      (delete-region (point-min) (point-max))
-      (hurl-response-mode)
-      (insert "Captures:\n")
-      (when captures
-        (with-temp-file hurl-variables-file
-          ;; if there's an existing hurl-variables-file, then we add the contents to the temp buffer
-          (when (file-exists-p hurl-variables-file)
-            (insert-file-contents hurl-variables-file))
-          (seq-do
-           (lambda (e)
-             ;; reuse variables file and replace values if needed
-             (save-excursion
-               (goto-char (point-min))
-               (message "name %s" (concat (string-trim (car e)) "="))
-               (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
-                 (message "found; delete line")
-                 (delete-line)))
-             (insert (mapconcat #'string-trim e "=") "\n")
+      (condition-case err
+          ;; filter using capture groups, anychar is used because we want newlines
+          ;; there's always a Response and Response body luckily
+          (let* ((str (with-current-buffer hurl-response--output-buffer-name (buffer-string)))
+                 (resp1 (let ((match-idx
+                               (string-match
+                                (rx-to-string
+                                 `(: bol
+                                   (group "* Response:" (0+ anychar) "* Response body:")
+                                   (group (0+ anychar))
+                                   "* Timings:"))
+                                str)))
+                          (if match-idx
+                              (substring str (match-beginning 2) (match-end 2))
+                            (error str)
+                            )))
+                 (resp-head (substring str (match-beginning 1) (match-end 1)))
+                 ;; get rid of leading stars
+                 (resp (mapconcat (lambda (s)
+                                    (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
+                                      (substring s (match-beginning 1) (match-end 1)))
+                                    )
+                                  (split-string resp1 "\n")
+                                  " "))
+                 (formatted-resp
+                  (condition-case nil
+                      (with-temp-buffer
+                        (let ((jq-command (executable-find "jq")))
+                          (if jq-command
+                              (insert (shell-command-to-string (format "echo %s | %s -R '. as $line | try (fromjson) catch $line'"
+                                                                       (escape-string resp)
+                                                                       jq-command)))
+                            (insert resp)))
+                        (buffer-substring (point-min) (point-max))
+                        )
+                    (error resp)))
+                 ;; isn't always a capture though
+                 (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
+                              (substring str (match-beginning 1) (match-end 1)))
+                            )
+                 ;; mainly get rid of *'s, and convert the : to an = for the variables file
+                 ;; becomes a list of name to val
+                 (captures (when captures1
+                             (cl-map 'list
+                                     (lambda (s)
+                                       (split-string s ":"))
+                                     (seq-filter #'identity
+                                                 ;; get rid of leading *'s
+                                                 ;; TODO maybe we extract this part out cause its same code as for resp
+                                                 (cl-map 'list (lambda (s)
+                                                                 (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
+                                                                   (substring s (match-beginning 1) (match-end 1)))
+                                                                 )
+                                                         (split-string captures1 "\n"))))))
+                 )
+            (delete-region (point-min) (point-max))
+            (hurl-response-mode)
+            (insert "Captures:\n")
+            (when captures
+              (with-temp-file hurl-variables-file
+                ;; if there's an existing hurl-variables-file, then we add the contents to the temp buffer
+                (when (file-exists-p hurl-variables-file)
+                  (insert-file-contents hurl-variables-file))
+                (seq-do
+                 (lambda (e)
+                   ;; reuse variables file and replace values if needed
+                   (save-excursion
+                     (goto-char (point-min))
+                     (message "name %s" (concat (string-trim (car e)) "="))
+                     (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
+                       (message "found; delete line")
+                       (delete-line)))
+                   (insert (mapconcat #'string-trim e "=") "\n")
 
-             ;; HACK: go back to the response buffer and insert there as well
-             (with-current-buffer (get-buffer-create hurl-response--buffer-name)
-               (insert (mapconcat #'string-trim e "=") "\n")
-               )
-             )
-           captures
-           )
-          )
+                   ;; HACK: go back to the response buffer and insert there as well
+                   (with-current-buffer (get-buffer-create hurl-response--buffer-name)
+                     (insert (mapconcat #'string-trim e "=") "\n")
+                     )
+                   )
+                 captures
+                 )
+                )
+              )
+            (insert "\n\n" resp-head "\n")
+            (insert formatted-resp)
+            )
+        (error
+         (delete-region (point-min) (point-max))
+         (hurl-response-mode)
+         (insert (error-message-string err)))
         )
-      (insert "\n\n" resp-head "\n")
-      (insert formatted-resp)
       )
-    )
   )
 
 (defun hurl-response--verbose-filter (proc str)
