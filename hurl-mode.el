@@ -622,9 +622,7 @@ Otherwise use the default `hurl-variables-file'."
 
 (defun hurl-mode-send-request-single (arg)
   "Simple thin wrapper which sends the request at point to hurl.
-With one prefix ARGs, execute with --very-verbose.
-With two, also prompt for arbitrary additional options to hurl command.
-With three, also prompt to edit the jq command filtering"
+With prefix arg, prompts for additional arguments to send to hurl."
   (interactive "P")
   (let* ((beg (save-excursion
                 (forward-line)
@@ -648,27 +646,21 @@ With three, also prompt to edit the jq command filtering"
 
 (defun hurl-mode-send-request-file (arg)
   "Simple thin wrapper which sends the contents of the current file to hurl.
-With one prefix ARGs, execute with --very-verbose.
-With two, also prompt for arbitrary additional options to hurl command.
-With three, also prompt to edit the jq command filtering"
+With prefix arg, prompts for additional arguments to send to hurl."
   (interactive "P")
   (hurl-mode--send-request))
 
 
 (defun hurl-mode-test-request-file (arg)
   "Hurl wrapper function to send file for testing.
-With one prefix ARGs, execute with --very-verbose.
-With two, also prompt for arbitrary additional options to hurl command.
-With three, also prompt to edit the jq command filtering"
+With prefix arg, prompts for additional arguments to send to hurl."
   (interactive "P")
   (hurl-mode--send-request "--test")
   )
 
 (defun hurl-mode-test-request-single (arg)
   "Hurl wrapper function to send the request at point for testing.
-With one prefix ARGs, execute with --very-verbose.
-With two, also prompt for arbitrary additional options to hurl command.
-With three, also prompt to edit the jq command filtering"
+With prefix arg, prompts for additional arguments to send to hurl."
   (interactive "P")
   (hurl-mode--send-request "--test")
   )
