@@ -498,6 +498,8 @@ Prefixes every string with -- for convenience."
        (_ match)))
    str t t))
 
+(define-error 'hurl-parse-error "Error parsing hurl response")
+
 (defun hurl-response--parse-and-filter-output (&optional variables-filename)
   "Filters the hurl --verbose output STR from PROC to what we care about.
 Namely, response headers/body, and captures (to save to variables file).
@@ -507,7 +509,8 @@ Otherwise use the default `hurl-variables-file'."
   (condition-case err
       ;; filter using capture groups, anychar is used because we want newlines
       ;; there's always a Response and Response body luckily
-      (let* ((str (with-current-buffer hurl-response--output-buffer-name (buffer-string)))
+      (let* ((str (with-current-buffer hurl-response--output-buffer-name
+                    (buffer-string)))
              (resp1 (let ((match-idx
                            (string-match
                             (rx-to-string
@@ -518,7 +521,7 @@ Otherwise use the default `hurl-variables-file'."
                             str)))
                       (if match-idx
                           (substring str (match-beginning 2) (match-end 2))
-                        (error str)
+                        (signal 'hurl-response-error str)
                         )))
              (resp-head (substring str (match-beginning 1) (match-end 1)))
              ;; get rid of leading stars
@@ -531,15 +534,17 @@ Otherwise use the default `hurl-variables-file'."
              (formatted-resp
               (condition-case nil
                   (with-temp-buffer
-                    (let ((jq-command (executable-find "jq")))
+                    (let* ((jq-command (executable-find "jq" (file-remote-p default-directory))))
                       (if jq-command
-                          (insert (shell-command-to-string (format "echo %s | %s -R '. as $line | try (fromjson) catch $line'"
-                                                                   (escape-string resp)
-                                                                   jq-command)))
+                          (insert (shell-command-to-string
+                                   (format "echo \"%s\" | %s -R '. as $line | try (fromjson) catch $line'"
+                                           (escape-string resp)
+                                           jq-command)))
                         (insert resp)))
+                    (ansi-color-apply-on-region (point-min) (point-max))
                     (buffer-substring (point-min) (point-max))
                     )
-                (error resp)))
+                (signal 'hurl-response-error resp)))
              ;; isn't always a capture though
              (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
                           (substring str (match-beginning 1) (match-end 1)))
@@ -589,7 +594,7 @@ Otherwise use the default `hurl-variables-file'."
           (insert "\n\n" resp-head "\n")
           (insert formatted-resp)
           ))
-    (error
+    (hurl-parse-error
      (with-current-buffer (get-buffer-create hurl-response--buffer-name)
        (delete-region (point-min) (point-max))
        (hurl-response-mode)
@@ -618,7 +623,8 @@ Otherwise use the default `hurl-variables-file'."
     (get-buffer-create hurl-response--output-buffer-name)
     (when-let ((buf (get-buffer hurl-response--process-buffer-name))) (kill-buffer buf))
     ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
-    (let* ((proc (start-process-shell-command "hurl" hurl-response--process-buffer-name cmd))
+    (let* ((proc (start-file-process "hurl" (get-buffer-create hurl-response--process-buffer-name)
+                                     "/bin/sh" "-c" cmd))
            (proc-buffer (process-buffer proc)))
 
       (when proc-sentinel
@@ -646,7 +652,8 @@ With prefix arg, prompts for additional arguments to send to hurl."
      (lambda (p e) (when (not (process-live-p p))
                 (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
                   (ansi-color-apply-on-region (point-min) (point-max)))
-                (hurl-response--parse-and-filter-output)
+                (with-current-buffer hurl-response--output-buffer-name
+                  (hurl-response--parse-and-filter-output))
                 (display-buffer hurl-response--buffer-name)
                 (delete-file hurl-mode--temp-file-name))))))
 
