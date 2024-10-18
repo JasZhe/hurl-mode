@@ -363,7 +363,7 @@ If point is on the block delimiters themselves, return nil."
   ;;(rx bol (group "```" (group (zero-or-more (any "a-zA-Z"))))))
   (let ((block-start (save-excursion (re-search-backward "```" nil t) (point)))
         ;; need the end-of-line here cause we don't want to return true when point is ON the block delimiter
-        (block-end (save-excursion (end-of-line) (re-search-forward "```") (point)))
+        (block-end (save-excursion (end-of-line) (re-search-forward "```" nil t) (point)))
         (prev-req (save-excursion (re-search-backward hurl-mode--http-method-regexp nil t) (point)))
         (next-req (save-excursion (re-search-forward hurl-mode--http-method-regexp nil t) (point)))
         )
