@@ -521,7 +521,7 @@ Otherwise use the default `hurl-variables-file'."
                             str)))
                       (if match-idx
                           (substring str (match-beginning 2) (match-end 2))
-                        (signal 'hurl-response-error str)
+                        (signal 'hurl-parse-error str)
                         )))
              (resp-head (substring str (match-beginning 1) (match-end 1)))
              ;; get rid of leading stars
@@ -544,7 +544,7 @@ Otherwise use the default `hurl-variables-file'."
                     (ansi-color-apply-on-region (point-min) (point-max))
                     (buffer-substring (point-min) (point-max))
                     )
-                (signal 'hurl-response-error resp)))
+                (signal 'hurl-parse-error str)))
              ;; isn't always a capture though
              (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
                           (substring str (match-beginning 1) (match-end 1)))
@@ -565,7 +565,7 @@ Otherwise use the default `hurl-variables-file'."
                                                      (split-string captures1 "\n"))))))
              )
         (with-current-buffer (get-buffer-create hurl-response--buffer-name)
-          (delete-region (point-min) (point-max))
+          (erase-buffer)
           (hurl-response-mode)
           (insert "Captures:\n")
           (when captures
@@ -596,9 +596,9 @@ Otherwise use the default `hurl-variables-file'."
           ))
     (hurl-parse-error
      (with-current-buffer (get-buffer-create hurl-response--buffer-name)
-       (delete-region (point-min) (point-max))
+       (erase-buffer)
        (hurl-response-mode)
-       (insert (error-message-string err))))
+       (insert (cdr err))))
     )
   )
 
