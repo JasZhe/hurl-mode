@@ -602,7 +602,7 @@ Otherwise use the default `hurl-variables-file'."
                     )
                 (signal 'hurl-parse-error str)))
              ;; isn't always a capture though
-             (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
+             (captures1 (when (string-match (rx-to-string `(: bol (group "* Captures:" (0+ anychar)) "*")) str)
                           (substring str (match-beginning 1) (match-end 1)))
                         )
              ;; mainly get rid of *'s, and convert the : to an = for the variables file
@@ -624,7 +624,6 @@ Otherwise use the default `hurl-variables-file'."
           (erase-buffer)
           (hurl-response-mode)
           (insert req)
-          (insert "Captures:\n")
           (when captures
             (with-temp-file hurl-variables-file
               ;; if there's an existing hurl-variables-file, then we add the contents to the temp buffer
