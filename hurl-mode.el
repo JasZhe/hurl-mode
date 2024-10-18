@@ -543,6 +543,22 @@ Otherwise use the default `hurl-variables-file'."
       ;; there's always a Response and Response body luckily
       (let* ((str (with-current-buffer hurl-response--output-buffer-name
                     (buffer-string)))
+             (req (let ((match-idx
+                           (string-match
+                            (rx-to-string
+                             `(: bol
+                               (: (group "* Request:" (0+ anychar)) "* Request can be run with the following curl command:")
+                               (0+ anychar)
+                               (: (group "* Request body:" (0+ anychar)) "* Response:")
+                               ))
+                            str)))
+                      (if match-idx
+                          (concat
+                           (substring str (match-beginning 1) (match-end 1))
+                           (substring str (match-beginning 2) (match-end 2))
+                           )
+                        ""
+                        )))
              (resp1 (let ((match-idx
                            (string-match
                             (rx-to-string
@@ -607,6 +623,7 @@ Otherwise use the default `hurl-variables-file'."
         (with-current-buffer (get-buffer-create hurl-response--buffer-name)
           (erase-buffer)
           (hurl-response-mode)
+          (insert req)
           (insert "Captures:\n")
           (when captures
             (with-temp-file hurl-variables-file
