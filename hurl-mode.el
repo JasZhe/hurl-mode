@@ -36,6 +36,7 @@
 ;; this is just for org-src-get-lang-mode
 (require 'org-src)
 (require 'js)
+(require 'json-mode)
 (require 'shell)
 (require 'outline)
 
@@ -425,6 +426,12 @@ Each req/resp body is also its own block."
           ("\\* Response:" . 2)
           ("\\* Response body:" . 2)
           ))
+
+  ;; Don't want any fontification cause we're manually setting text properties with hurl--fontify-using-faces
+  ;; and ansi-color-apply-on-region.
+  ;; Otherwise, our json fontification will get overriden by font-lock-string-face
+  (setq-local font-lock-defaults '())
+
   (setq-local outline-level #'hurl-response-outline-level)
   (outline-minor-mode))
 
@@ -498,7 +505,32 @@ Prefixes every string with -- for convenience."
        (_ match)))
    str t t))
 
+(define-error 'hurl-json-parse-error "Hurl-mode: Error parsing response using json.el")
 (define-error 'hurl-parse-error "Error parsing hurl response")
+
+(defun hurl--fontify-using-faces (text)
+  "This is for using another major mode's fontification.
+Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-buffer-with-another-major-mode"
+  (let ((pos 0))
+    (while (setq next (next-single-property-change pos 'face text))
+      (put-text-property pos next 'font-lock-face (get-text-property pos 'face text) text)
+      (setq pos next))
+    (add-text-properties 0  (length text) '(fontified t) text)
+    text))
+
+(defun hurl--format-json (json)
+  "Format JSON string keeping json-mode's fontification."
+  (with-temp-buffer
+    (erase-buffer)
+    (insert json)
+    (delay-mode-hooks (jsonc-mode))
+    (font-lock-default-function 'jsonc-mode)
+    (font-lock-default-fontify-region (point-min) (point-max) nil)
+    (condition-case err
+        (json-pretty-print (point-min) (point-max))
+      (json-readtable-error
+       (signal 'hurl-json-parse-error json)))
+    (hurl--fontify-using-faces (buffer-string))))
 
 (defun hurl-response--parse-and-filter-output (&optional variables-filename)
   "Filters the hurl --verbose output STR from PROC to what we care about.
@@ -534,14 +566,22 @@ Otherwise use the default `hurl-variables-file'."
              (formatted-resp
               (condition-case nil
                   (with-temp-buffer
-                    (let* ((jq-command (executable-find "jq" (file-remote-p default-directory))))
-                      (if jq-command
-                          (insert (shell-command-to-string
-                                   (format "echo \"%s\" | %s -R '. as $line | try (fromjson) catch $line'"
-                                           (escape-string resp)
-                                           jq-command)))
-                        (insert resp)))
-                    (ansi-color-apply-on-region (point-min) (point-max))
+                    (condition-case err
+                        (insert (hurl--format-json resp))
+                      (hurl-json-parse-error
+                       (let* ((jq-command (executable-find "jq" (file-remote-p default-directory))))
+                         (when jq-command
+                             (insert
+                              (shell-command-to-string
+                               (format "echo %s | %s -R '. as $line | try (fromjson) catch $line'"
+                                       (escape-string resp)
+                                       jq-command))
+                              )
+                           (ansi-color-apply-on-region (point-min) (point-max))
+                           )
+                         )
+                       )
+                      )
                     (buffer-substring (point-min) (point-max))
                     )
                 (signal 'hurl-parse-error str)))
