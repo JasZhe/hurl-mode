@@ -1,15 +1,17 @@
 * hurl-mode
-An Emacs major mode for [[https://hurl.dev/][hurl]], a cli tool for sending HTTP requests (using cURL under the hood) in plain text format similar to [[https://github.com/pashky/restclient.el][restclient.el]],
-but can be used outside emacs and also has some additional testing utilities built in.
+An Emacs major mode for [[https://hurl.dev/][hurl]], a cli tool for sending HTTP requests (using cURL under the hood) in plain text format similar to [[https://github.com/pashky/restclient.el][restclient.el]] (now archived), but can be used outside emacs and also has some additional testing utilities built in.
 
 * Usage
-A simple wrapper for the cli command is provided via: ~hurl-mode-send-request~ with a shortcut of =C-c C-c=
+- =C-c x= will execute the hurl request at point in a temporary file created using the same directory as the original.
+- =C-c X= will execute the entire hurl file.
+- =C-c T= will execute the hurl file in test mode.
+Executing any of the commands with a prefix arg will prompt for additional hurl switches.
 
 If a hurl variable file, =hurl-variable-file= (default is =.hurl-variables=) exists in the same directory as the .hurl file we're executing, the variables will automatically be added to the request.
 
 There is some outline mode integration with the hurl response buffer to allow folding the sections.
 
-** org babel integration
+** Org Babel Integration
 Simple org babel implementation that passes the src block vars into the --variable option for the cli command
 
 Simple example:
@@ -19,19 +21,17 @@ POST {{host}}
 ,#+end_src
 #+end_example
 
-** Commands to send request
-- =C-c x= will execute the hurl request at point in a temporary file created using the same directory as the original.
-- =C-c X= will execute the entire hurl file.
-- =C-c T= will execute the hurl file in test mode.
+** Response Output
+Will try to format using =json-pretty-print= with font-locking by =json-mode=.
+If =json-pretty-print= fails we'll fall back to using =jq= if its available.
 
-If =jq= is available, then it will automatically be used to format what json exists in the response.
+In my effort to extract the response so I can do some formatting, I've trimmed down some of verbosity of the output from hurl. You can find the buffer that contains *all* the verbose output by searching for some sort of "*hurl-" buffer.
 
 There's a separate mode for the hurl response buffer.
-Executing any of the commands with a prefix arg will prompt for additional hurl switches.
+Outline-minor-mode is automatically enabled in the response buffer with some custom outline methods.
+This makes it easy to navigate and see all the responses from the very-verbose output.
 
-Outline-minor-mode is automatically enabled with some custom outline methods. This makes it easy to navigate and see all the responses from the very-verbose output.
-
-** screenshot
+** Screenshot
 [[file:screenshot.png]]
 
 * Installation
@@ -67,17 +67,13 @@ Prior to this I was using the excellent [[https://github.com/pashky/restclient.e
 Lastly, I also used this as an exercise to learn more about emacs lisp and how major modes are structured and as a way to give back to this wonderful editor known as emacs.
 
 * Contributing
-My use case for hurl is actually pretty simple.
-I just use it to send some basic requests with some auth capturing mixed in.
-I don't really make too much use of the test/assertion facilities.
-So if you do have some more complicated use cases that aren't covered here, feel free to drop an issue.
+I'm mostly using this as a nice text-based replacement for postman, hence maybe I'm not really using =hurl= to its fullest. I'm open to any issues for those who use some of the other features of =hurl= that are lacking in this little package of mine.
 
 I mostly wrote this for two reasons, one to have some basic font locking and stuff for hurl
 (and also org babel integration where I find it most useful actually) and to learn a bit more elisp.
 
 I won't stop people from making PR's but given the above, I would actually like to tackle any issues myself first :)
 if you would bear with my inexperience. Pointers and advice in the issues would also be appreciated for the same reason.
-
 
 * Acknowledgements
 Took a lot of inspiration for the extend region function from [[https://github.com/nex3/haml-mode][haml-mode]] (no longer using extend region, instead sort of using the same hackyish method that org babel uses)
