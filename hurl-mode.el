@@ -474,22 +474,6 @@ Prefixes every string with -- for convenience."
       )
     all-options))
 
-(defun hurl-response--save-captures-proc-filter (proc string)
-  ;; WIP: right now we need to execute the request with the detailed view
-  ;; then we just do a simple regex search for "* Captures:" and grab the variables from there
-  ;; and write to the variables file
-  (with-current-buffer (process-buffer proc)
-    (save-excursion
-      (when (search-backward "Captures:" nil t)
-        ;; match beginning *, then a group for .* for the capture name, a colon, a space and another .* group for the value
-        (let ((hurl-captures ""))
-          (while (re-search-forward "\\* \\(.*\\).*: \\(.*\\)" nil t)
-            (let ((variable (concat (match-string 1) "=" (match-string 2) "\n")))
-              (setq hurl-captures (concat hurl-captures variable))))
-          (with-temp-file hurl-variables-file
-            (insert hurl-captures))))))
-  (comint-output-filter proc string))
-
 (define-error 'hurl-json-parse-error "Hurl-mode: Error parsing response using json.el")
 (define-error 'hurl-parse-error "Error parsing hurl response")
 
@@ -548,15 +532,18 @@ Otherwise use the default `hurl-variables-file'."
                            (string-match
                             (rx-to-string
                              `(: bol
+                               (group (0+ anychar)) ;; all the stuff before the resp
                                (group "* Response:" (0+ anychar) "* Response body:")
                                (group (0+ anychar))
-                               "* Timings:"))
+                               (group "* Timings:" (0+ anychar) "*" eol)))
                             str)))
                       (if match-idx
-                          (substring str (match-beginning 2) (match-end 2))
+                          (substring str (match-beginning 3) (match-end 3))
                         (signal 'hurl-parse-error str)
                         )))
-             (resp-head (substring str (match-beginning 1) (match-end 1)))
+             (pre-resp-text (substring str (match-beginning 1) (match-end 1)))
+             (timings (substring str (match-beginning 4) (match-end 4)))
+             (resp-head (substring str (match-beginning 2) (match-end 2)))
              ;; get rid of leading stars
              (resp (mapconcat (lambda (s)
                                 (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
@@ -596,7 +583,7 @@ Otherwise use the default `hurl-variables-file'."
                     )
                 (signal 'hurl-parse-error str)))
              ;; isn't always a capture though
-             (captures1 (when (string-match (rx-to-string `(: bol (group "* Captures:" (0+ anychar)) "*")) str)
+             (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
                           (substring str (match-beginning 1) (match-end 1)))
                         )
              ;; mainly get rid of *'s, and convert the : to an = for the variables file
@@ -617,10 +604,11 @@ Otherwise use the default `hurl-variables-file'."
         (with-current-buffer (get-buffer-create hurl-response--buffer-name)
           (erase-buffer)
           (hurl-response-mode)
-          (insert req)
+          (insert pre-resp-text)
           (when captures
             (with-temp-file hurl-variables-file
-              ;; if there's an existing hurl-variables-file, then we add the contents to the temp buffer
+              ;; insert hurl-variables-file contents into buffer created by with-temp-file
+              ;; so that we can replace existing variables with updated ones from the new captures
               (when (file-exists-p hurl-variables-file)
                 (insert-file-contents hurl-variables-file))
               (seq-do
@@ -631,18 +619,14 @@ Otherwise use the default `hurl-variables-file'."
                    (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
                      (delete-line)))
                  (insert (mapconcat #'string-trim e "=") "\n")
-
-                 ;; HACK: go back to the response buffer and insert there as well
-                 (with-current-buffer (get-buffer-create hurl-response--buffer-name)
-                   (insert (mapconcat #'string-trim e "=") "\n")
-                   )
                  )
                captures
                )
               )
             )
+          (insert timings)
           (insert "\n\n" resp-head "\n")
-          (insert formatted-resp)
+          (insert formatted-resp "\n")
           ))
     (hurl-parse-error
      (with-current-buffer (get-buffer-create hurl-response--buffer-name)
