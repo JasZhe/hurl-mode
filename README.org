@@ -32,7 +32,7 @@ Outline-minor-mode is automatically enabled in the response buffer with some cus
 This makes it easy to navigate and see all the responses from the very-verbose output.
 
 ** Screenshot
-[[file:screenshot.png]]
+| [[file:screenshots/dark.png]] | [[file:screenshots/light.png]] |
 
 * Installation
 With emacs 29 we have built in package-vc-install and use-package now
