@@ -490,21 +490,6 @@ Prefixes every string with -- for convenience."
             (insert hurl-captures))))))
   (comint-output-filter proc string))
 
-(defun escape-string (str)
-  "Escape special characters in STR."
-  (replace-regexp-in-string
-   "\\([\n\t\"\\{}]\\)"
-   (lambda (match)
-     (pcase match
-       ("{" "\\{")
-       ("}" "\\}")
-       ("\n" "\\n")
-       ("\t" "\\t")
-       ("\"" "\\\"")
-       ("\\" "\\\\")
-       (_ match)))
-   str t t))
-
 (define-error 'hurl-json-parse-error "Hurl-mode: Error parsing response using json.el")
 (define-error 'hurl-parse-error "Error parsing hurl response")
 
@@ -583,18 +568,27 @@ Otherwise use the default `hurl-variables-file'."
               (condition-case nil
                   (with-temp-buffer
                     (condition-case err
-                        (insert (hurl--format-json resp))
-                      (hurl-json-parse-error
-                       (let* ((jq-command (executable-find "jq" (file-remote-p default-directory))))
-                         (when jq-command
-                             (insert
-                              (shell-command-to-string
-                               (format "echo %s | %s -R '. as $line | try (fromjson) catch $line'"
-                                       (escape-string resp)
-                                       jq-command))
-                              )
-                           (ansi-color-apply-on-region (point-min) (point-max))
-                           )
+                      (insert (hurl--format-json resp))
+                      (t
+                       ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
+                       ;; most of the time formatting with json-mode should be good enough and is much faster
+                       (if (not (file-remote-p default-directory))
+                           (let* ((jq-command (executable-find "jq" (file-remote-p default-directory)))
+                                  (jq-output
+                                   (when jq-command
+                                     (ansi-color-apply
+                                      (shell-command-to-string
+                                       ;; -C to colorize with ansi codes, then we apply using 'ansi-color-apply'
+                                       ;; -R reads each line as string instead of JSOn
+                                       ;; the 'try' lets us output erroneous lines as is, while continuouing to parse the rest
+                                       (format "timeout 3 echo %s | %s -C -R '. as $line | try (fromjson) catch $line'"
+                                               (shell-quote-argument resp)
+                                               jq-command))
+                                      )
+                                     )))
+                             (insert (if (string-empty-p jq-output) resp jq-output))
+                             )
+                         (insert resp)
                          )
                        )
                       )
