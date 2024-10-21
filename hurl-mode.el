@@ -546,11 +546,11 @@ Otherwise use the default `hurl-variables-file'."
              (resp-head (substring str (match-beginning 2) (match-end 2)))
              ;; get rid of leading stars
              (resp (mapconcat (lambda (s)
-                                (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
+                                (when (string-match (rx-to-string `(: bol "* "  (group (0+ nonl)))) s)
                                   (substring s (match-beginning 1) (match-end 1)))
                                 )
                               (split-string resp1 "\n")
-                              " "))
+                              ""))
              (formatted-resp
               (condition-case nil
                   (with-temp-buffer
