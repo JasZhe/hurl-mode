@@ -554,30 +554,35 @@ Otherwise use the default `hurl-variables-file'."
              (formatted-resp
               (condition-case nil
                   (with-temp-buffer
-                    (condition-case err
-                      (insert (hurl--format-json resp))
-                      (t
-                       ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
-                       ;; most of the time formatting with json-mode should be good enough and is much faster
-                       (if (not (file-remote-p default-directory))
-                           (let* ((jq-command (executable-find "jq" (file-remote-p default-directory)))
-                                  (jq-output
-                                   (when jq-command
-                                     (ansi-color-apply
-                                      (shell-command-to-string
-                                       ;; -C to colorize with ansi codes, then we apply using 'ansi-color-apply'
-                                       ;; -R reads each line as string instead of JSOn
-                                       ;; the 'try' lets us output erroneous lines as is, while continuouing to parse the rest
-                                       (format "timeout 3 echo %s | %s -C -R '. as $line | try (fromjson) catch $line'"
-                                               (shell-quote-argument resp)
-                                               jq-command))
-                                      )
-                                     )))
-                             (insert (if (string-empty-p jq-output) resp jq-output))
+                    (if (string-match "Content-Type: application/json" resp-head)
+                        (condition-case err
+                            (insert (hurl--format-json resp))
+                          (t
+                           ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
+                           ;; most of the time formatting with json-mode should be good enough and is much faster
+                           (if (not (file-remote-p default-directory))
+                               (let* ((jq-command (executable-find "jq" (file-remote-p default-directory)))
+                                      (jq-output
+                                       (when jq-command
+                                         (ansi-color-apply
+                                          (let ((cmd (shell-command-to-string
+                                                      ;; -C to colorize with ansi codes, then we apply using 'ansi-color-apply'
+                                                      ;; -R reads each line as string instead of JSOn
+                                                      ;; the 'try' lets us output erroneous lines as is, while continuouing to parse the rest
+                                                      (format "timeout 3 echo %s | %s -C -R '. as $line | try (fromjson) catch $line'"
+                                                              (shell-quote-argument resp)
+                                                              jq-command))))
+                                            (message "%s" cmd)
+                                            cmd)
+                                          )
+                                         )))
+                                 (insert (if (string-empty-p jq-output) resp jq-output))
+                                 )
+                             (insert resp)
                              )
-                         (insert resp)
-                         )
-                       )
+                           )
+                          )
+                      (insert resp)
                       )
                     (buffer-substring (point-min) (point-max))
                     )
