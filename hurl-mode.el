@@ -512,45 +512,57 @@ Otherwise use the default `hurl-variables-file'."
       ;; there's always a Response and Response body luckily
       (let* ((str (with-current-buffer hurl-response--output-buffer-name
                     (buffer-string)))
-             (req (let ((match-idx
-                           (string-match
-                            (rx-to-string
-                             `(: bol
-                               (: (group "* Request:" (0+ anychar)) "* Request can be run with the following curl command:")
-                               (0+ anychar)
-                               (: (group "* Request body:" (0+ anychar)) "* Response:")
-                               ))
-                            str)))
-                      (if match-idx
-                          (concat
-                           (substring str (match-beginning 1) (match-end 1))
-                           (substring str (match-beginning 2) (match-end 2))
-                           )
-                        ""
-                        )))
-             (resp1 (let ((match-idx
-                           (string-match
-                            (rx-to-string
-                             `(: bol
-                               (group (0+ anychar)) ;; all the stuff before the resp
-                               (group "* Response:" (0+ anychar) "* Response body:")
-                               (group (0+ anychar))
-                               (group "* Timings:" (0+ anychar) "*" eol)))
-                            str)))
-                      (if match-idx
-                          (substring str (match-beginning 3) (match-end 3))
-                        (signal 'hurl-parse-error str)
-                        )))
-             (pre-resp-text (substring str (match-beginning 1) (match-end 1)))
-             (timings (substring str (match-beginning 4) (match-end 4)))
-             (resp-head (substring str (match-beginning 2) (match-end 2)))
+             (variables (with-current-buffer hurl-response--output-buffer-name
+                          (goto-char (point-min))
+                          (buffer-substring (progn (re-search-forward "Variables:")
+                                                   (line-beginning-position))
+                                            (progn
+                                              (re-search-forward "* Executing entry")
+                                              (line-beginning-position)))
+                          ))
+             (req (with-current-buffer hurl-response--output-buffer-name
+                    (goto-char (point-min))
+                    (concat (buffer-substring (progn (re-search-forward "Request:")
+                                                     (line-beginning-position))
+                                              (progn
+                                                (re-search-forward
+                                                 "* Request can be run with the following curl command:")
+                                                (line-beginning-position)))
+                            (buffer-substring (progn (re-search-forward "Request body:")
+                                                     (line-beginning-position))
+                                              (progn
+                                                (re-search-forward "* Response")
+                                                (line-beginning-position))))))
+             (resp-head
+              (with-current-buffer hurl-response--output-buffer-name
+                (goto-char (point-min))
+                (buffer-substring (progn (re-search-forward "* Response:")
+                                         (line-beginning-position))
+                                  (progn
+                                    (re-search-forward
+                                     "* Response body:")
+                                    (line-end-position)))))
+             (resp1
+              (with-current-buffer hurl-response--output-buffer-name
+                (goto-char (point-min))
+                (buffer-substring (progn (re-search-forward "* Response body:")
+                                         (line-end-position))
+                                  (progn (re-search-forward "* Timings:")
+                                         (line-beginning-position)))))
              ;; get rid of leading stars
              (resp (mapconcat (lambda (s)
                                 (when (string-match (rx-to-string `(: bol "* "  (group (0+ nonl)))) s)
                                   (substring s (match-beginning 1) (match-end 1)))
                                 )
                               (split-string resp1 "\n")
-                              ""))
+                              "\n"))
+             (timings
+              (with-current-buffer hurl-response--output-buffer-name
+                (goto-char (point-min))
+                (buffer-substring (progn (re-search-forward "* Timings:")
+                                         (line-beginning-position))
+                                  (progn (re-search-forward "*$")
+                                         (line-beginning-position)))))
              (formatted-resp
               (condition-case nil
                   (with-temp-buffer
@@ -572,7 +584,6 @@ Otherwise use the default `hurl-variables-file'."
                                                       (format "timeout 3 echo %s | %s -C -R '. as $line | try (fromjson) catch $line'"
                                                               (shell-quote-argument resp)
                                                               jq-command))))
-                                            (message "%s" cmd)
                                             cmd)
                                           )
                                          )))
@@ -586,7 +597,7 @@ Otherwise use the default `hurl-variables-file'."
                       )
                     (buffer-substring (point-min) (point-max))
                     )
-                (signal 'hurl-parse-error str)))
+                (error (signal 'hurl-parse-error str))))
              ;; isn't always a capture though
              (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
                           (substring str (match-beginning 1) (match-end 1)))
@@ -609,7 +620,7 @@ Otherwise use the default `hurl-variables-file'."
         (with-current-buffer (get-buffer-create hurl-response--buffer-name)
           (erase-buffer)
           (hurl-response-mode)
-          (insert pre-resp-text)
+          (insert variables)
           (when captures
             (with-temp-file hurl-variables-file
               ;; insert hurl-variables-file contents into buffer created by with-temp-file
@@ -629,14 +640,17 @@ Otherwise use the default `hurl-variables-file'."
                )
               )
             )
+          (insert req)
           (insert timings)
           (insert "\n\n" resp-head "\n")
           (insert formatted-resp "\n")
           ))
-    (hurl-parse-error
+    ;; something wrong happened with parsing so just output everything
+    ((hurl-parse-error search-failed error)
      (with-current-buffer (get-buffer-create hurl-response--buffer-name)
        (erase-buffer)
        (hurl-response-mode)
+       (insert (with-current-buffer hurl-response--output-buffer-name (buffer-string)))
        (insert (cdr err))))
     )
   )
