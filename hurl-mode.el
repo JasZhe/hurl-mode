@@ -435,6 +435,13 @@ Each req/resp body is also its own block."
   (setq-local outline-level #'hurl-response-outline-level)
   (outline-minor-mode))
 
+(defcustom hurl-use-fast-process-settings t
+  "Whether or not to spped up processes via changing some emacs vars.
+`read-process-output-max' and `process-adaptive-read-buffering' can be tuned
+to improve process speed.
+Setting this will adjust those settings only for the hurl process we create."
+  :type '(boolean))
+
 (defcustom hurl-variables-file ".hurl-variables"
   "Name of variables file to automatically use in hurl requests."
   :type '(string))
@@ -676,7 +683,9 @@ Otherwise use the default `hurl-variables-file'."
     (get-buffer-create hurl-response--output-buffer-name)
     (when-let ((buf (get-buffer hurl-response--process-buffer-name))) (kill-buffer buf))
     ;; https://stackoverflow.com/questions/41599314/ignore-unparseable-json-with-jq
-    (let* ((proc (start-file-process "hurl" (get-buffer-create hurl-response--process-buffer-name)
+    (let* ((read-process-output-max (if hurl-use-fast-process-settings (* 64 1024 1024) read-process-output-max))
+           (process-adaptive-read-buffering (if hurl-use-fast-process-settings nil process-adaptive-read-buffering))
+           (proc (start-file-process "hurl" (get-buffer-create hurl-response--process-buffer-name)
                                      "/bin/sh" "-c" cmd))
            (proc-buffer (process-buffer proc)))
 
