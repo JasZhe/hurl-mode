@@ -576,7 +576,7 @@ Otherwise use the default `hurl-variables-file'."
                     (if (string-match "Content-Type: application/json" resp-head)
                         (condition-case err
                             (insert (hurl--format-json resp))
-                          (t
+                          (error
                            ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
                            ;; most of the time formatting with json-mode should be good enough and is much faster
                            (if (not (file-remote-p default-directory))
@@ -653,12 +653,12 @@ Otherwise use the default `hurl-variables-file'."
           (insert formatted-resp "\n")
           ))
     ;; something wrong happened with parsing so just output everything
-    ((hurl-parse-error search-failed error)
+    (error
      (with-current-buffer (get-buffer-create hurl-response--buffer-name)
        (erase-buffer)
        (hurl-response-mode)
        (insert (with-current-buffer hurl-response--output-buffer-name (buffer-string)))
-       (insert (cdr err))))
+       (insert (concat "\nhurl lisp error: " (prin1-to-string err)))))
     )
   )
 
@@ -750,8 +750,6 @@ With prefix arg, prompts for additional arguments to send to hurl."
 
 (setq hurl-mode-map
       (let ((map (make-sparse-keymap)))
-        (define-key map (kbd "C-M-i") nil)
-        (define-key map (kbd "M-<tab>") nil)
         (define-key map (kbd "C-c T") 'hurl-mode-test-request-file)
         (define-key map (kbd "C-c t") 'hurl-mode-test-request-single)
         
