@@ -557,11 +557,9 @@ Otherwise use the default `hurl-variables-file'."
                                   (progn (re-search-forward "* Timings:")
                                          (line-beginning-position)))))
              ;; get rid of leading stars
-             (resp (mapconcat (lambda (s)
-                                (when (string-match (rx-to-string `(: bol "* "  (group (0+ nonl)))) s)
-                                  (substring s (match-beginning 1) (match-end 1)))
-                                )
-                              (split-string resp1 "\n")
+             (resp (mapconcat (lambda (s) (string-trim-left (string-trim-left s "\\* ") "\\*"))
+                              ;; split on both real newlines and escaped newlines
+                              (split-string resp1 (rx-to-string `(: (or "\n" "\\n"))) t)
                               "\n"))
              (timings
               (with-current-buffer hurl-response--output-buffer-name
