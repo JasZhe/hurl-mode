@@ -674,7 +674,7 @@ Otherwise use the default `hurl-variables-file'."
                         (hurl--read-args))
                       (when (file-exists-p hurl-variables-file)
                         (concat " --variables-file " hurl-variables-file))))
-        (cmd (concat "hurl" args " " (if file-name file-name (buffer-file-name)))))
+        (cmd (concat "hurl" " " args " " (if file-name file-name (buffer-file-name)))))
 
     (message "executing hurl cmd: %s" cmd)
     (ignore-errors (kill-buffer hurl-response--output-buffer-name))
