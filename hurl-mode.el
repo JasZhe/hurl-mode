@@ -36,6 +36,7 @@
 ;; this is just for org-src-get-lang-mode
 (require 'org-src)
 (require 'js)
+(require 'sgml-mode)
 (require 'json-mode)
 (require 'shell)
 (require 'outline)
@@ -494,7 +495,7 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
     (add-text-properties 0  (length text) '(fontified t) text)
     text))
 
-(defun hurl--format-json (json)
+(defun hurl-response--format-json (json)
   "Format JSON string keeping json-mode's fontification."
   (with-temp-buffer
     (erase-buffer)
@@ -508,6 +509,39 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
        (signal 'hurl-json-parse-error json)))
     (hurl--fontify-using-faces (buffer-string))))
 
+(defun hurl-response--format-json-with-jq (resp)
+  "Format http response using jq.
+If not possible, return the resp as is."
+  (let* ((jq-command (executable-find "jq" (file-remote-p default-directory)))
+         (jq-output
+          (when jq-command
+            (ansi-color-apply
+             (let ((cmd (shell-command-to-string
+                         ;; -C to colorize with ansi codes, then we apply using 'ansi-color-apply'
+                         ;; -R reads each line as string instead of JSOn
+                         ;; the 'try' lets us output erroneous lines as is, while continuouing to parse the rest
+                         (format "timeout 3 echo %s | %s -C -R '. as $line | try (fromjson) catch $line'"
+                                 (shell-quote-argument resp)
+                                 jq-command))))
+               cmd)
+             )
+            )))
+    (if (string-empty-p jq-output) resp jq-output)
+    )
+  )
+
+(defun hurl-response--format-xml (resp)
+  "Format xml response using `sgml-pretty-print' and keeping sgml mode's fontification"
+  (with-temp-buffer
+    (erase-buffer)
+    (insert resp)
+    (delay-mode-hooks (sgml-mode))
+    (font-lock-default-function 'sgml-mode)
+    (font-lock-default-fontify-region (point-min) (point-max) nil)
+    (sgml-pretty-print (point-min) (point-max))
+    (hurl--fontify-using-faces (buffer-string)))
+  )
+
 (defun hurl-response--parse-and-filter-output (&optional variables-filename)
   "Filters the hurl --verbose output STR from PROC to what we care about.
 Namely, response headers/body, and captures (to save to variables file).
@@ -519,30 +553,17 @@ Otherwise use the default `hurl-variables-file'."
       ;; there's always a Response and Response body luckily
       (let* ((str (with-current-buffer hurl-response--output-buffer-name
                     (buffer-string)))
-             (variables (with-current-buffer hurl-response--output-buffer-name
-                          (goto-char (point-min))
-                          ;; Don't want to error out in the re-search-forward here
-                          ;; cause might not always have variables file
-                          (ignore-errors
-                            (buffer-substring (progn (re-search-forward "Variables:")
-                                                   (line-beginning-position))
-                                            (progn
-                                              (re-search-forward "* Executing entry")
-                                              (line-beginning-position))))
-                          ))
-             (req (with-current-buffer hurl-response--output-buffer-name
-                    (goto-char (point-min))
-                    (concat (buffer-substring (progn (re-search-forward "Request:")
-                                                     (line-beginning-position))
-                                              (progn
-                                                (re-search-forward
-                                                 "* Request can be run with the following curl command:")
-                                                (line-beginning-position)))
-                            (buffer-substring (progn (re-search-forward "Request body:")
-                                                     (line-beginning-position))
-                                              (progn
-                                                (re-search-forward "* Response")
-                                                (line-beginning-position))))))
+             (output-without-response
+              (with-current-buffer hurl-response--output-buffer-name
+                (goto-char (point-min))
+                (concat
+                 ;; stuff before response
+                 (buffer-substring (point-min)
+                                   (progn (re-search-forward "* Response:") (line-beginning-position)))
+                 ;; stuff after response
+                 (buffer-substring (progn (re-search-forward "* Timings:") (line-beginning-position))
+                                   (progn (re-search-forward "*$") (line-beginning-position)))))
+                 )
              (resp-head
               (with-current-buffer hurl-response--output-buffer-name
                 (goto-char (point-min))
@@ -564,50 +585,31 @@ Otherwise use the default `hurl-variables-file'."
                               ;; split on both real newlines and escaped newlines
                               (split-string resp1 (rx-to-string `(: (or "\n" "\\n"))) t)
                               "\n"))
-             (timings
-              (with-current-buffer hurl-response--output-buffer-name
-                (goto-char (point-min))
-                (buffer-substring (progn (re-search-forward "* Timings:")
-                                         (line-beginning-position))
-                                  (progn (re-search-forward "*$")
-                                         (line-beginning-position)))))
              (formatted-resp
               (condition-case nil
                   (with-temp-buffer
-                    (if (string-match "Content-Type: application/json" resp-head)
-                        (condition-case err
-                            (insert (hurl--format-json resp))
-                          (error
-                           ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
-                           ;; most of the time formatting with json-mode should be good enough and is much faster
-                           (if (not (file-remote-p default-directory))
-                               (let* ((jq-command (executable-find "jq" (file-remote-p default-directory)))
-                                      (jq-output
-                                       (when jq-command
-                                         (ansi-color-apply
-                                          (let ((cmd (shell-command-to-string
-                                                      ;; -C to colorize with ansi codes, then we apply using 'ansi-color-apply'
-                                                      ;; -R reads each line as string instead of JSOn
-                                                      ;; the 'try' lets us output erroneous lines as is, while continuouing to parse the rest
-                                                      (format "timeout 3 echo %s | %s -C -R '. as $line | try (fromjson) catch $line'"
-                                                              (shell-quote-argument resp)
-                                                              jq-command))))
-                                            cmd)
-                                          )
-                                         )))
-                                 (insert (if (string-empty-p jq-output) resp jq-output))
-                                 )
-                             (insert resp)
+                    (cond ((string-match "Content-Type: application/json" resp-head)
+                           (condition-case err
+                               (insert (hurl-response--format-json resp))
+                             (error
+                              ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
+                              ;; most of the time formatting with json-mode should be good enough and is much faster
+                              (if (not (file-remote-p default-directory))
+                                  (insert (hurl-response--format-json-with-jq resp))
+                                (insert resp)
+                                )
+                              )
                              )
                            )
-                          )
-                      (insert resp)
-                      )
-                    (buffer-substring (point-min) (point-max))
-                    )
+                          ((or (string-match "Content-Type: text/xml" resp-head)
+                               (string-match "Content-Type: application/xml" resp-head)
+                               (string-match "Content-Type: text/html" resp-head))
+                           (insert (hurl-response--format-xml resp)))
+                          (t (insert resp)))
+                    (buffer-substring (point-min) (point-max)))
                 (error (signal 'hurl-parse-error str))))
              ;; isn't always a capture though
-             (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) str)
+             (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) output-without-response)
                           (substring str (match-beginning 1) (match-end 1)))
                         )
              ;; mainly get rid of *'s, and convert the : to an = for the variables file
@@ -628,7 +630,7 @@ Otherwise use the default `hurl-variables-file'."
         (with-current-buffer (get-buffer-create hurl-response--buffer-name)
           (erase-buffer)
           (hurl-response-mode)
-          (insert variables)
+          (insert output-without-response)
           (when captures
             (with-temp-file hurl-variables-file
               ;; insert hurl-variables-file contents into buffer created by with-temp-file
@@ -648,9 +650,6 @@ Otherwise use the default `hurl-variables-file'."
                )
               )
             )
-          (insert req)
-          (insert timings)
-          (insert "\n\n" resp-head "\n")
           (insert formatted-resp "\n")
           ))
     ;; something wrong happened with parsing so just output everything
