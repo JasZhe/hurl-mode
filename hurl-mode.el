@@ -521,11 +521,14 @@ Otherwise use the default `hurl-variables-file'."
                     (buffer-string)))
              (variables (with-current-buffer hurl-response--output-buffer-name
                           (goto-char (point-min))
-                          (buffer-substring (progn (re-search-forward "Variables:")
+                          ;; Don't want to error out in the re-search-forward here
+                          ;; cause might not always have variables file
+                          (ignore-errors
+                            (buffer-substring (progn (re-search-forward "Variables:")
                                                    (line-beginning-position))
                                             (progn
                                               (re-search-forward "* Executing entry")
-                                              (line-beginning-position)))
+                                              (line-beginning-position))))
                           ))
              (req (with-current-buffer hurl-response--output-buffer-name
                     (goto-char (point-min))
