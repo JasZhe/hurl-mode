@@ -559,7 +559,7 @@ Otherwise use the default `hurl-variables-file'."
                 (concat
                  ;; stuff before response
                  (buffer-substring (point-min)
-                                   (progn (re-search-forward "* Response:") (line-beginning-position)))
+                                   (progn (re-search-forward "* Response body:") (line-beginning-position)))
                  ;; stuff after response
                  (buffer-substring (progn (re-search-forward "* Timings:") (line-beginning-position))
                                    (progn (re-search-forward "*$") (line-beginning-position)))))
