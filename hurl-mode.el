@@ -582,8 +582,9 @@ Otherwise use the default `hurl-variables-file'."
                                          (line-beginning-position)))))
              ;; get rid of leading stars
              (resp (mapconcat (lambda (s) (string-trim-left (string-trim-left s "\\* ") "\\*"))
-                              ;; split on both real newlines and escaped newlines
-                              (split-string resp1 (rx-to-string `(: (or "\n" "\\n"))) t)
+                              ;; split on real newlines only
+                              ;; sometimes replacing escaped newlines with real ones can really trip up json parsing i.e. {"x": "long\r\nline"}, we'd split up value for x which would be a mistake
+                              (split-string resp1 (rx-to-string `(: (or "\n"))) t)
                               "\n"))
              (formatted-resp
               (condition-case nil
