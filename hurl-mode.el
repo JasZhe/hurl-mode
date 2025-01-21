@@ -38,6 +38,7 @@
 (require 'js)
 (require 'sgml-mode)
 (require 'json-mode)
+(require 'json-ts-mode nil 'no-error) ;; optionally require json-ts-mode
 (require 'shell)
 (require 'outline)
 
@@ -122,6 +123,11 @@
   '((t (:inherit font-lock-type-face)))
   "Face for templates."
   :group 'hurl-faces)
+
+
+(defcustom hurl-mode-use-json-ts-mode t
+  "Whether or not to use `json-ts-mode' for json fontification in response body if applicable."
+  :type '(boolean))
 
 
 (defconst hurl-mode--http-method-keywords
@@ -500,8 +506,14 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
   (with-temp-buffer
     (erase-buffer)
     (insert json)
-    (delay-mode-hooks (jsonc-mode))
-    (font-lock-default-function 'jsonc-mode)
+    (if (and hurl-mode-use-json-ts-mode (fboundp 'json-ts-mode) (treesit-available-p) (treesit-language-available-p 'json))
+        (progn
+          (delay-mode-hooks (json-ts-mode))
+          (font-lock-default-function 'json-ts-mode)
+          )
+      (delay-mode-hooks (jsonc-mode))
+      (font-lock-default-function 'jsonc-mode)
+      )
     (font-lock-default-fontify-region (point-min) (point-max) nil)
     (condition-case err
         (json-pretty-print (point-min) (point-max))
