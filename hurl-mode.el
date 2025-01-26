@@ -37,7 +37,7 @@
 (require 'org-src)
 (require 'js)
 (require 'sgml-mode)
-(require 'json-mode)
+(require 'json-mode nil 'no-error) ;; if json-mode isn't available we'll try to fallback to jq or something
 (require 'json-ts-mode nil 'no-error) ;; optionally require json-ts-mode
 (require 'shell)
 (require 'outline)
@@ -502,7 +502,7 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
     text))
 
 (defun hurl-response--format-json (json)
-  "Format JSON string keeping json-mode's fontification."
+  "Format JSON string keeping json-mode's fontification. Assumes json-mode or json-ts-mode are available."
   (with-temp-buffer
     (erase-buffer)
     (insert json)
@@ -604,6 +604,7 @@ Otherwise use the default `hurl-variables-file'."
                     (cond ((string-match "Content-Type: application/json" resp-head)
                            (condition-case err
                                (insert (hurl-response--format-json resp))
+                             ;; on error i.e if json-mode or json-ts-mode aren't available tries to fall back to jq
                              (error
                               ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
                               ;; most of the time formatting with json-mode should be good enough and is much faster
