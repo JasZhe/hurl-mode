@@ -622,10 +622,12 @@ Otherwise use the default `hurl-variables-file'."
                           (t (insert resp)))
                     (buffer-substring (point-min) (point-max)))
                 (error (signal 'hurl-parse-error str))))
-             ;; isn't always a capture though
-             (captures1 (when (string-match (rx-to-string `(: bol "* Captures:" (group (0+ anychar)) "*")) output-without-response)
-                          (substring str (match-beginning 1) (match-end 1)))
-                        )
+             (captures1 (with-current-buffer hurl-response--output-buffer-name
+                          (goto-char (point-min))
+                          ;; if there's no capture we'll just return nil here since re-search-forward will error out
+                          (ignore-errors
+                            (buffer-substring (progn (re-search-forward "* Captures:") (forward-line) (line-beginning-position))
+                                              (progn (re-search-forward "^*\n") (line-beginning-position))))))
              ;; mainly get rid of *'s, and convert the : to an = for the variables file
              ;; becomes a list of name to val
              (captures (when captures1
@@ -640,6 +642,15 @@ Otherwise use the default `hurl-variables-file'."
                                                                (substring s (match-beginning 1) (match-end 1)))
                                                              )
                                                      (split-string captures1 "\n"))))))
+             (captures (seq-filter (lambda (c)
+                                     (and
+                                      ;; NOTE: sometimes a newline gets put into captures1 or something
+                                      ;; which puts something like ("" . nil) when we do the split-string on ':'
+                                      ;; we want to make sure not to have any of those cause it can mess up the
+                                      ;; functionality below for replacing existing variables
+                                      (not (string-empty-p (car c)))
+                                      (cdr c)))
+                                   captures))
              )
         (with-current-buffer (get-buffer-create hurl-response--buffer-name)
           (erase-buffer)
@@ -657,6 +668,7 @@ Otherwise use the default `hurl-variables-file'."
                  (save-excursion
                    (goto-char (point-min))
                    (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
+                     ;; NOTE: this bit might be error prone, see the note above with the seq-filter on 'captures'
                      (delete-line)))
                  (insert (mapconcat #'string-trim e "=") "\n")
                  )
