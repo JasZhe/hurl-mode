@@ -129,7 +129,6 @@
   "Whether or not to use `json-ts-mode' for json fontification in response body if applicable."
   :type '(boolean))
 
-
 (defconst hurl-mode--http-method-keywords
   '("GET" "HEAD" "POST" "PUT" "DELETE" "CONNECT" "OPTIONS" "TRACE" "PATCH"))
 (defconst hurl-mode--http-method-regexp
@@ -506,19 +505,22 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
   (with-temp-buffer
     (erase-buffer)
     (insert json)
+    ;; json-pretty-print has been around for a while (since emacs 25 I think?)
+    (condition-case err
+        (json-pretty-print (point-min) (point-max))
+      (json-readtable-error
+       (signal 'hurl-json-parse-error json)))
     (if (and hurl-mode-use-json-ts-mode (fboundp 'json-ts-mode) (treesit-available-p) (treesit-language-available-p 'json))
         (progn
           (delay-mode-hooks (json-ts-mode))
           (font-lock-default-function 'json-ts-mode)
           )
-      (delay-mode-hooks (jsonc-mode))
-      (font-lock-default-function 'jsonc-mode)
+      (when (fboundp 'jsonc-mode)
+        (delay-mode-hooks (jsonc-mode))
+        (font-lock-default-function 'jsonc-mode)
+        )
       )
     (font-lock-default-fontify-region (point-min) (point-max) nil)
-    (condition-case err
-        (json-pretty-print (point-min) (point-max))
-      (json-readtable-error
-       (signal 'hurl-json-parse-error json)))
     (hurl--fontify-using-faces (buffer-string))))
 
 (defun hurl-response--format-json-with-jq (resp)
@@ -610,7 +612,16 @@ Otherwise use the default `hurl-variables-file'."
                               ;; most of the time formatting with json-mode should be good enough and is much faster
                               (if (not (file-remote-p default-directory))
                                   (insert (hurl-response--format-json-with-jq resp))
-                                (insert resp)
+
+                                ;; one last try just getting formatting without font lock via json-pretty-print (> emacs25)
+                                (insert (with-temp-buffer
+                                          (erase-buffer)
+                                          (insert resp)
+                                          (condition-case err
+                                              (progn
+                                                (json-pretty-print (point-min) (point-max))
+                                                (buffer-string))
+                                            (error resp))))
                                 )
                               )
                              )
