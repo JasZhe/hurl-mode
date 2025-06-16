@@ -39,7 +39,6 @@
 (require 'sgml-mode)
 (require 'json-mode nil 'no-error) ;; if json-mode isn't available we'll try to fallback to jq or something
 (require 'json-ts-mode nil 'no-error) ;; optionally require json-ts-mode
-(require 'shell)
 (require 'outline)
 
 (eval-when-compile
@@ -424,7 +423,7 @@ TODO: capture the block lang, and have some mapping of langs to indent functions
    (- (match-end 0) (match-beginning 0))))
 
 ;;;###autoload
-(define-derived-mode hurl-response-mode shell-mode "HurlRes"
+(define-derived-mode hurl-response-mode text-mode "HurlRes"
   "Mode for the hurl response buffer.
 `outline-minor-mode' is enabled in this buffer.
 Each hurl request is its own block.
@@ -710,9 +709,10 @@ Otherwise use the default `hurl-variables-file'."
   )
 
 (defun hurl-response--verbose-filter (proc str)
+  "Simple process filter for use in `set-process-filter'.
+Just applies ansi color to the STR that come in from the hurl PROC."
   (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
-    (shell-mode)
-    (insert str)))
+    (insert (ansi-color-apply str))))
 
 
 (defun hurl-mode--send-request (&optional args file-name proc-sentinel)
