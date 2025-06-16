@@ -172,11 +172,19 @@
 
 (defun hurl-fontify-src-blocks (limit)
   "Fontifies body blocks for detected languages.
-Essentially creates a temporary buffer with the specified major mode and inserts the request body text into it.
-Then we can copy the font properties from that temporary buffer to our real hurl buffer.
+Essentially creates a temporary buffer with the specified major
+mode and inserts the request body text into it.
 
-This is basically a simplified version of the combination of `org-fontify-meta-lines-and-blocks-1' and `org-src-font-lock-fontify-block'
-since we don't need to care about the other block types in org."
+Then we can copy the font properties from that
+temporary buffer to our real hurl buffer.
+
+This is basically a simplified version of the combination of
+`org-fontify-meta-lines-and-blocks-1' and `org-src-font-lock-fontify-block'
+since we don't need to care about the other block types in org.
+
+From the elisp docs:
+LIMIT is the limit of the search; it should begin searching at point,
+and not search beyond the limit"
   (when (re-search-forward
          (rx bol (group "```"
                         (group (zero-or-more (any "a-zA-Z")))
@@ -383,8 +391,9 @@ If point is on the block delimiters themselves, return nil."
     (error nil)))
 
 (defun hurl-indent-line ()
-  "Indent line using `js-indent-line' if we're inside a block. Otherwise do nothing.
-TODO: capture the block lang, and have some mapping of langs to indent functions."
+  "Indent line using `js-indent-line' if we're inside a block.
+Otherwise do nothing."
+;; TODO: capture the block lang, and have some mapping of langs to indent functions.
   (if (hurl-inside-block-p)
       (js-indent-line)
     'noindent))
@@ -413,7 +422,7 @@ TODO: capture the block lang, and have some mapping of langs to indent functions
     (sp-local-pair 'hurl-mode "`" nil :actions nil)))
 
 (defun hurl-response-outline-level ()
-  (or 
+  (or
    (cdr
     (cl-find-if
      (lambda (h)
@@ -448,7 +457,7 @@ Each req/resp body is also its own block."
   (outline-minor-mode))
 
 (defcustom hurl-use-fast-process-settings t
-  "Whether or not to spped up processes via changing some emacs vars.
+  "Whether or not to spped up processes via changing some Emacs vars.
 `read-process-output-max' and `process-adaptive-read-buffering' can be tuned
 to improve process speed.
 Setting this will adjust those settings only for the hurl process we create."
@@ -470,6 +479,7 @@ Setting this will adjust those settings only for the hurl process we create."
 (defconst hurl-mode--temp-file-name ".temp-request.hurl")
 
 (defun hurl-options-completion-at-point ()
+  "Mainly for providing additional options via executing a request with prefix arg."
   (let* ((bds (bounds-of-thing-at-point 'word))
          (start (car bds))
          (end (cdr bds)))
@@ -497,7 +507,7 @@ Prefixes every string with -- for convenience."
 (define-error 'hurl-parse-error "Error parsing hurl response")
 
 (defun hurl--fontify-using-faces (text)
-  "This is for using another major mode's fontification.
+  "This is for using another major mode's fontification on TEXT.
 Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-buffer-with-another-major-mode"
   (let ((pos 0))
     (while (setq next (next-single-property-change pos 'face text))
@@ -507,7 +517,7 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
     text))
 
 (defun hurl-response--format-json (json)
-  "Format JSON string keeping json-mode's fontification. Assumes json-mode or json-ts-mode are available."
+  "Format JSON string keeping json-mode's fontification. Assumes `json-mode' or `json-ts-mode' are available."
   (with-temp-buffer
     (erase-buffer)
     (insert json)
@@ -530,7 +540,7 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
     (hurl--fontify-using-faces (buffer-string))))
 
 (defun hurl-response--format-json-with-jq (resp)
-  "Format http response using jq.
+  "Format http RESP using jq.
 If not possible, return the resp as is."
   (let* ((jq-command (executable-find "jq" (file-remote-p default-directory)))
          (jq-output
@@ -551,7 +561,7 @@ If not possible, return the resp as is."
   )
 
 (defun hurl-response--format-xml (resp)
-  "Format xml response using `sgml-pretty-print' and keeping sgml mode's fontification"
+  "Format xml RESP using `sgml-pretty-print' and keeping sgml mode's fontification."
   (with-temp-buffer
     (erase-buffer)
     (insert resp)
@@ -743,7 +753,7 @@ Just applies ansi color to the STR that come in from the hurl PROC."
 
 (defun hurl-mode-send-request-single (arg)
   "Simple thin wrapper which sends the request at point to hurl.
-With prefix arg, prompts for additional arguments to send to hurl."
+With prefix ARG, prompts for additional arguments to send to hurl."
   (interactive "P")
   (let* ((beg (save-excursion
                 (forward-line)
@@ -768,7 +778,7 @@ With prefix arg, prompts for additional arguments to send to hurl."
 
 (defun hurl-mode-send-request-file (arg)
   "Simple thin wrapper which sends the contents of the current file to hurl.
-With prefix arg, prompts for additional arguments to send to hurl."
+With prefix ARG, prompts for additional arguments to send to hurl."
   (interactive "P")
   (write-region (point-min) (point-max) hurl-mode--temp-file-name)
   (hurl-mode--send-request nil hurl-mode--temp-file-name
@@ -783,14 +793,14 @@ With prefix arg, prompts for additional arguments to send to hurl."
 
 (defun hurl-mode-test-request-file (arg)
   "Hurl wrapper function to send file for testing.
-With prefix arg, prompts for additional arguments to send to hurl."
+With prefix ARG, prompts for additional arguments to send to hurl."
   (interactive "P")
   (hurl-mode--send-request "--test")
   )
 
 (defun hurl-mode-test-request-single (arg)
   "Hurl wrapper function to send the request at point for testing.
-With prefix arg, prompts for additional arguments to send to hurl."
+With prefix ARG, prompts for additional arguments to send to hurl."
   (interactive "P")
   (hurl-mode--send-request "--test")
   )
@@ -822,3 +832,6 @@ With prefix arg, prompts for additional arguments to send to hurl."
 
 (provide 'hurl-mode)
 ;;; hurl-mode.el ends here
+;; Local Variables:
+;; byte-compile-warnings: (not docstrings docstrings-wide)
+;; End:
