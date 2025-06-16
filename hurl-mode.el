@@ -644,7 +644,11 @@ Otherwise use the default `hurl-variables-file'."
              (captures (when captures1
                          (cl-map 'list
                                  (lambda (s)
-                                   (split-string s ":"))
+                                   ;; We only want to split on the FIRST :, since for example we can get something like this in the json
+                                   ;; "message": "https://images.dog.ceo/breeds/australian-shepherd/leroy.jpg"
+                                   ;;                  ^ note the colon here in the value
+                                   (let ((splits (split-string s ":")))
+                                     (cons (nth 0 splits) (list (string-join (cdr splits) ":")))))
                                  (seq-filter #'identity
                                              ;; get rid of leading *'s
                                              ;; TODO maybe we extract this part out cause its same code as for resp
