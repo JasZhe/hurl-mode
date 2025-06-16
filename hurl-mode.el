@@ -368,13 +368,20 @@ since we don't need to care about the other block types in org."
   "Return t if inside hurl body block, nil otherwise.
 If point is on the block delimiters themselves, return nil."
   ;;(rx bol (group "```" (group (zero-or-more (any "a-zA-Z"))))))
-  (let ((block-start (save-excursion (re-search-backward "```" nil t) (point)))
-        ;; need the end-of-line here cause we don't want to return true when point is ON the block delimiter
-        (block-end (save-excursion (end-of-line) (re-search-forward "```" nil t) (point)))
-        (prev-req (save-excursion (re-search-backward hurl-mode--http-method-regexp nil t) (point)))
-        (next-req (save-excursion (re-search-forward hurl-mode--http-method-regexp nil t) (point)))
-        )
-    (and (> block-start prev-req) (< block-end next-req))))
+  (condition-case nil
+      (let ((block-start (save-excursion (re-search-backward "```") (point)))
+            ;; need the end-of-line here cause we don't want to return true when point is ON the block delimiter
+            (block-end (save-excursion (end-of-line) (re-search-forward "```") (point)))
+            (prev-req (save-excursion
+                        (condition-case nil
+                            (progn (re-search-backward hurl-mode--http-method-regexp) (point))
+                          (error (point-min)))))
+            (next-req (save-excursion
+                        (condition-case nil
+                            (progn (re-search-forward hurl-mode--http-method-regexp) (point))
+                          (error (point-max))))))
+        (and (> block-start prev-req) (< block-end next-req)))
+    (error nil)))
 
 (defun hurl-indent-line ()
   "Indent line using `js-indent-line' if we're inside a block. Otherwise do nothing.
@@ -576,8 +583,7 @@ Otherwise use the default `hurl-variables-file'."
                                    (progn (re-search-forward "* Response body:") (line-beginning-position)))
                  ;; stuff after response
                  (buffer-substring (progn (re-search-forward "* Timings:") (line-beginning-position))
-                                   (progn (re-search-forward "*$") (line-beginning-position)))))
-                 )
+                                   (progn (re-search-forward "*$") (line-beginning-position))))))
              (resp-head
               (with-current-buffer hurl-response--output-buffer-name
                 (goto-char (point-min))
