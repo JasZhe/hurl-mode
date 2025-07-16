@@ -7,9 +7,24 @@ An Emacs major mode for [[https://hurl.dev/][hurl]], a cli tool for sending HTTP
 - =C-c T= will execute the hurl file in test mode.
 Executing any of the commands with a prefix arg will prompt for additional hurl switches.
 
-If a hurl variable file, =hurl-variable-file= (default is =.hurl-variables=) exists in the same directory as the .hurl file we're executing, the variables will automatically be added to the request.
+** Variables
+If a hurl variable file, ~hurl-variable-file~ (default is =.hurl-variables=) exists in the same directory as the .hurl file we're executing, the variables will automatically be added to the request.
 
-There is some outline mode integration with the hurl response buffer to allow folding the sections.
+Any captures made in the request will also automatically be appended to the ~hurl-variables-file~.
+
+** Secrets
+If a ~hurl-secrets-file~ exists then hurl-mode will automatically add a --secret option for each secret specified in the file.
+
+The format of this should be the same as value provided to the hurl --secret option i.e.
+
+#+begin_example
+API_KEY=secret
+OTHER_API_KEY=other_secret
+#+end_example
+
+It's recommended that this file be encrypted in some way. Currently only GPG is supported (since Emacs supports it natively).
+
+TODO: allow users to insert their own decryption hook to read the secrets for other non-gpg encryption methods.
 
 ** Org Babel Integration
 Simple org babel implementation that passes the src block vars into the --variable option for the cli command
@@ -22,8 +37,8 @@ POST {{host}}
 #+end_example
 
 ** Response Output
-Will try to format using =json-pretty-print= with font-locking by =json-mode=.
-If =json-pretty-print= fails we'll fall back to using =jq= if its available.
+Will try to format using ~jSon-pretty-print~ with font-locking by ~json-mode~.
+If ~json-pretty-print~ fails we'll fall back to using =jq= if its available.
 
 In my effort to extract the response so I can do some formatting, I've trimmed down some of verbosity of the output from hurl. You can find the buffer that contains *all* the verbose output by searching for some sort of "*hurl-" buffer.
 
@@ -35,7 +50,9 @@ This makes it easy to navigate and see all the responses from the very-verbose o
 | [[file:screenshots/dark.png]] | [[file:screenshots/light.png]] |
 
 * Customization
-~hurl-variables-file~ Change the default variables file used in hurl requests made by hurl-mode.
+~hurl-secrets-file~ Change the secrets file hurl mode will use to send secrets via the --secret option.
+
+~hurl-variables-file~ Change the default variables file used in hurl requests made by hurl-mode. Defaults to ".hurl-variables"
 
 ~hurl-mode-use-netrc-file~ If this is t, hurl-mode will automatically include the --netrc-file option, using ~hurl-mode-netrc-file~. Defaults to nil.
 

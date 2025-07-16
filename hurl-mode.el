@@ -123,6 +123,19 @@
   "Face for templates."
   :group 'hurl-faces)
 
+(defcustom hurl-secrets-file ".secrets.gpg"
+  "Name of secrets file to use in hurl requests.
+
+Format should be NAME=VALUE as specified in hurl's --secret option.
+All variables in here will be sent via the --secret option in hurl.
+
+This file is HIGHLY encouraged to be encrypted.
+Emacs has built in support for handling GPG files.
+
+Other encryption methods will need custom handling.
+TODO: Need a way for users to hook into the request to decrypt secrets file."
+  :type '(string))
+
 (defcustom hurl-variables-file ".hurl-variables"
   "Name of variables file to automatically use in hurl requests."
   :type '(string))
@@ -768,6 +781,19 @@ Otherwise use the default `hurl-variables-file'."
 Just applies ansi color to the STR that come in from the hurl PROC."
   (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
     (insert (ansi-color-apply str))))
+
+
+
+(defun hurl-mode--read-secrets-file ()
+  "Read `hurl-secrets-file' and return a list of secret key value pairs."
+  (with-temp-buffer
+    (when (file-exists-p hurl-secrets-file)
+      (insert-file-contents hurl-secrets-file))
+    (let ((secrets '()))
+      (while (not (eobp))
+        (cl-pushnew (buffer-substring-no-properties (line-beginning-position) (line-end-position)) secrets)
+        (forward-line 1))
+      secrets)))
 
 
 (defun hurl-mode--send-request (&optional args file-name proc-sentinel)
