@@ -123,10 +123,31 @@
   "Face for templates."
   :group 'hurl-faces)
 
+(defcustom hurl-variables-file ".hurl-variables"
+  "Name of variables file to automatically use in hurl requests."
+  :type '(string))
+
+(defcustom hurl-mode-use-netrc-file nil
+  "Whether or not to use the --netrc-file option.
+See: `hurl-mode-netrc-file'"
+  :type '(boolean))
+
+(defcustom hurl-mode-netrc-file "~/.netrc"
+  "Location for netrc file for usernams and passwords.
+To be used with the --netrc-file option."
+  :type '(file))
 
 (defcustom hurl-mode-use-json-ts-mode t
   "Whether or not to use `json-ts-mode' for json fontification in response body if applicable."
   :type '(boolean))
+
+(defcustom hurl-use-fast-process-settings t
+  "Whether or not to speed up processes via changing some Emacs vars.
+`read-process-output-max' and `process-adaptive-read-buffering' can be tuned
+to improve process speed.
+Setting this will adjust those settings only for the hurl process we create."
+  :type '(boolean))
+
 
 (defconst hurl-mode--http-method-keywords
   '("GET" "HEAD" "POST" "PUT" "DELETE" "CONNECT" "OPTIONS" "TRACE" "PATCH"))
@@ -490,17 +511,6 @@ Each req/resp body is also its own block."
   (setq-local outline-level #'hurl-response-outline-level)
   (outline-minor-mode))
 
-(defcustom hurl-use-fast-process-settings t
-  "Whether or not to spped up processes via changing some Emacs vars.
-`read-process-output-max' and `process-adaptive-read-buffering' can be tuned
-to improve process speed.
-Setting this will adjust those settings only for the hurl process we create."
-  :type '(boolean))
-
-(defcustom hurl-variables-file ".hurl-variables"
-  "Name of variables file to automatically use in hurl requests."
-  :type '(string))
-
 (defvar hurl-response--buffer-name "*hurl-response*"
   "Name of output buffer to display to user.")
 
@@ -774,6 +784,11 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
   (save-buffer) ;; this saves the current hurl file
   (let* ((args (concat args
                        " --very-verbose"
+                       (when hurl-mode-use-netrc-file
+                         (concat " --netrc-file " hurl-mode-netrc-file))
+                       (mapconcat
+                        (lambda (secret) (concat " --secret " secret))
+                        (hurl-mode--read-secrets-file))
                        (when current-prefix-arg
                          (hurl--read-args))
                        (when (file-exists-p hurl-variables-file)
@@ -787,6 +802,11 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
            (proc (start-file-process "hurl" (get-buffer-create hurl-response--process-buffer-name)
                                      "/bin/sh" "-c" cmd))
            (proc-buffer (process-buffer proc)))
+
+      (with-current-buffer proc-buffer
+        (when hurl-use-fast-process-settings
+          (setq-local read-process-output-max (* 64 1024 1024)
+                      process-adaptive-read-buffering nil)))
 
       (when proc-sentinel
         (set-process-sentinel proc proc-sentinel))

@@ -34,6 +34,17 @@ This makes it easy to navigate and see all the responses from the very-verbose o
 ** Screenshot
 | [[file:screenshots/dark.png]] | [[file:screenshots/light.png]] |
 
+* Customization
+~hurl-variables-file~ Change the default variables file used in hurl requests made by hurl-mode.
+
+~hurl-mode-use-netrc-file~ If this is t, hurl-mode will automatically include the --netrc-file option, using ~hurl-mode-netrc-file~. Defaults to nil.
+
+~hurl-mode-netrc-file~ Change the netrc file used in requests amde by hurl-mode.
+
+~hurl-mode-use-json-ts-mode~ If this is t, try and fontify =json= request bodies using ~json-ts-mode~, otherwise hurl-mode will try to use =json-mode=. Regardless, if neither of these are available, no fontification will be done on the body. Defaults to t.
+
+~hurl-use-fast-process-settings~ If this is t, tunes ~read-process-output-max~ ~process-adaptive-read-buffering~ to make the hurl process a little faster. Defaults to t.
+
 * Installation
 With emacs 29 we have built in package-vc-install and use-package now
 #+begin_src elisp
