@@ -630,150 +630,167 @@ If not possible, return the resp as is."
     (hurl--fontify-using-faces (buffer-string)))
   )
 
+(defun hurl-response--extract-sections ()
+  "Extract different sections from the hurl response output buffer.
+Returns an alist with keys 'output-without-response, 'resp-head, and 'resp."
+  (with-current-buffer hurl-response--output-buffer-name
+    (let ((output-without-response
+           (progn
+             (goto-char (point-min))
+             (concat
+              ;; stuff before response
+              (buffer-substring (point-min)
+                                (progn (re-search-forward "* Response body:") (line-beginning-position)))
+              ;; stuff after response
+              (buffer-substring (progn (re-search-forward "* Timings:") (line-beginning-position))
+                                (progn (re-search-forward "*$") (line-beginning-position))))))
+          (resp-head
+           (progn
+             (goto-char (point-min))
+             (buffer-substring (progn (re-search-forward "* Response:")
+                                      (line-beginning-position))
+                               (progn
+                                 (re-search-forward
+                                  "* Response body:")
+                                 (line-end-position)))))
+          (resp1
+           (progn
+             (goto-char (point-min))
+             (buffer-substring (progn (re-search-forward "* Response body:")
+                                      (line-end-position))
+                               (progn (re-search-forward "* Timings:")
+                                      (line-beginning-position))))))
+      ;; get rid of leading stars
+      (let ((resp (mapconcat (lambda (s) (string-trim-left (string-trim-left s "\\* ") "\\*"))
+                             ;; split on real newlines only
+                             ;; sometimes replacing escaped newlines with real ones can really trip up json parsing i.e. {"x": "long\r\nline"}, we'd split up value for x which would be a mistake
+                             (split-string resp1 (rx-to-string `(: (or "\n"))) t)
+                             "\n")))
+        `((output-without-response . ,output-without-response)
+          (resp-head . ,resp-head)
+          (resp . ,resp))))))
+
+(defun hurl-response--format-response (resp-head resp)
+  "Format response body based on content type.
+RESP-HEAD is the response header section.
+RESP is the response body section."
+  (condition-case nil
+      (with-temp-buffer
+        (cond ((string-match "Content-Type: application/json" resp-head)
+               (condition-case err
+                   (insert (hurl-response--format-json resp))
+                 ;; on error i.e if json-mode or json-ts-mode aren't available tries to fall back to jq
+                 (error
+                  ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
+                  ;; most of the time formatting with json-mode should be good enough and is much faster
+                  (if (not (file-remote-p default-directory))
+                      (insert (hurl-response--format-json-with-jq resp))
+                    ;; one last try just getting formatting without font lock via json-pretty-print (> emacs25)
+                    (insert (with-temp-buffer
+                              (erase-buffer)
+                              (insert resp)
+                              (condition-case err
+                                  (progn
+                                    (json-pretty-print (point-min) (point-max))
+                                    (buffer-string))
+                                (error resp))))))))
+              ((or (string-match "Content-Type: text/xml" resp-head)
+                   (string-match "Content-Type: application/xml" resp-head)
+                   (string-match "Content-Type: text/html" resp-head))
+               (insert (hurl-response--format-xml resp)))
+              (t (insert resp)))
+        (buffer-substring (point-min) (point-max)))
+    (error resp)))
+
+(defun hurl-response--extract-captures ()
+  "Extract captures from the hurl response output buffer.
+Returns a list of (name . value) pairs."
+  (with-current-buffer hurl-response--output-buffer-name
+    (goto-char (point-min))
+    ;; if there's no capture we'll just return nil here since re-search-forward will error out
+    (let ((captures1 (ignore-errors
+                       (buffer-substring (progn (re-search-forward "* Captures:") (forward-line) (line-beginning-position))
+                                         (progn (re-search-forward "^*\n") (line-beginning-position))))))
+      (when captures1
+        ;; mainly get rid of *'s, and convert the : to an = for the variables file
+        ;; becomes a list of name to val
+        (let ((captures (cl-map 'list
+                                (lambda (s)
+                                  ;; We only want to split on the FIRST :, since for example we can get something like this in the json
+                                  ;; "message": "https://images.dog.ceo/breeds/australian-shepherd/leroy.jpg"
+                                  ;;                  ^ note the colon here in the value
+                                  (let ((splits (split-string s ":")))
+                                    (cons (nth 0 splits) (list (string-join (cdr splits) ":")))))
+                                (seq-filter #'identity
+                                            ;; get rid of leading *'s
+                                            (cl-map 'list (lambda (s)
+                                                            (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
+                                                              (substring s (match-beginning 1) (match-end 1))))
+                                                    (split-string captures1 "\n"))))))
+          ;; Filter out invalid captures
+          (seq-filter (lambda (c)
+                        (and
+                         ;; NOTE: sometimes a newline gets put into captures1 or something
+                         ;; which puts something like ("" . nil) when we do the split-string on ':'
+                         ;; we want to make sure not to have any of those cause it can mess up the
+                         ;; functionality below for replacing existing variables
+                         (not (string-empty-p (car c)))
+                         (cdr c)))
+                      captures))))))
+
+(defun hurl-response--save-captures (captures)
+  "Save CAPTURES to the hurl variables file."
+  (when captures
+    (with-temp-file hurl-variables-file
+      ;; insert hurl-variables-file contents into buffer created with-temp-file
+      ;; so that we can replace existing variables with updated ones from the new captures
+      (when (file-exists-p hurl-variables-file)
+        (insert-file-contents hurl-variables-file))
+      (seq-do
+       (lambda (e)
+         ;; reuse variables file and replace values if needed
+         (save-excursion
+           (goto-char (point-min))
+           (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
+             ;; NOTE: this bit might be error prone, see the note above with the seq-filter on 'captures'
+             (delete-line)))
+         (insert (mapconcat #'string-trim e "=") "\n"))
+       captures))))
+
 (defun hurl-response--parse-and-filter-output (&optional variables-filename)
-  "Filters the hurl --verbose output STR from PROC to what we care about.
+  "Filters the hurl --verbose output from PROC to what we care about.
 Namely, response headers/body, and captures (to save to variables file).
 If VARIABLES-FILENAME is set, save the captures as hurl-variables to that file.
 Otherwise use the default `hurl-variables-file'."
-
   (condition-case err
-      ;; filter using capture groups, anychar is used because we want newlines
-      ;; there's always a Response and Response body luckily
       (let* ((str (with-current-buffer hurl-response--output-buffer-name
                     (buffer-string)))
-             (output-without-response
-              (with-current-buffer hurl-response--output-buffer-name
-                (goto-char (point-min))
-                (concat
-                 ;; stuff before response
-                 (buffer-substring (point-min)
-                                   (progn (re-search-forward "* Response body:") (line-beginning-position)))
-                 ;; stuff after response
-                 (buffer-substring (progn (re-search-forward "* Timings:") (line-beginning-position))
-                                   (progn (re-search-forward "*$") (line-beginning-position))))))
-             (resp-head
-              (with-current-buffer hurl-response--output-buffer-name
-                (goto-char (point-min))
-                (buffer-substring (progn (re-search-forward "* Response:")
-                                         (line-beginning-position))
-                                  (progn
-                                    (re-search-forward
-                                     "* Response body:")
-                                    (line-end-position)))))
-             (resp1
-              (with-current-buffer hurl-response--output-buffer-name
-                (goto-char (point-min))
-                (buffer-substring (progn (re-search-forward "* Response body:")
-                                         (line-end-position))
-                                  (progn (re-search-forward "* Timings:")
-                                         (line-beginning-position)))))
-             ;; get rid of leading stars
-             (resp (mapconcat (lambda (s) (string-trim-left (string-trim-left s "\\* ") "\\*"))
-                              ;; split on real newlines only
-                              ;; sometimes replacing escaped newlines with real ones can really trip up json parsing i.e. {"x": "long\r\nline"}, we'd split up value for x which would be a mistake
-                              (split-string resp1 (rx-to-string `(: (or "\n"))) t)
-                              "\n"))
-             (formatted-resp
-              (condition-case nil
-                  (with-temp-buffer
-                    (cond ((string-match "Content-Type: application/json" resp-head)
-                           (condition-case err
-                               (insert (hurl-response--format-json resp))
-                             ;; on error i.e if json-mode or json-ts-mode aren't available tries to fall back to jq
-                             (error
-                              ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
-                              ;; most of the time formatting with json-mode should be good enough and is much faster
-                              (if (not (file-remote-p default-directory))
-                                  (insert (hurl-response--format-json-with-jq resp))
-
-                                ;; one last try just getting formatting without font lock via json-pretty-print (> emacs25)
-                                (insert (with-temp-buffer
-                                          (erase-buffer)
-                                          (insert resp)
-                                          (condition-case err
-                                              (progn
-                                                (json-pretty-print (point-min) (point-max))
-                                                (buffer-string))
-                                            (error resp))))
-                                )
-                              )
-                             )
-                           )
-                          ((or (string-match "Content-Type: text/xml" resp-head)
-                               (string-match "Content-Type: application/xml" resp-head)
-                               (string-match "Content-Type: text/html" resp-head))
-                           (insert (hurl-response--format-xml resp)))
-                          (t (insert resp)))
-                    (buffer-substring (point-min) (point-max)))
-                (error (signal 'hurl-parse-error str))))
-             (captures1 (with-current-buffer hurl-response--output-buffer-name
-                          (goto-char (point-min))
-                          ;; if there's no capture we'll just return nil here since re-search-forward will error out
-                          (ignore-errors
-                            (buffer-substring (progn (re-search-forward "* Captures:") (forward-line) (line-beginning-position))
-                                              (progn (re-search-forward "^*\n") (line-beginning-position))))))
-             ;; mainly get rid of *'s, and convert the : to an = for the variables file
-             ;; becomes a list of name to val
-             (captures (when captures1
-                         (cl-map 'list
-                                 (lambda (s)
-                                   ;; We only want to split on the FIRST :, since for example we can get something like this in the json
-                                   ;; "message": "https://images.dog.ceo/breeds/australian-shepherd/leroy.jpg"
-                                   ;;                  ^ note the colon here in the value
-                                   (let ((splits (split-string s ":")))
-                                     (cons (nth 0 splits) (list (string-join (cdr splits) ":")))))
-                                 (seq-filter #'identity
-                                             ;; get rid of leading *'s
-                                             ;; TODO maybe we extract this part out cause its same code as for resp
-                                             (cl-map 'list (lambda (s)
-                                                             (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
-                                                               (substring s (match-beginning 1) (match-end 1)))
-                                                             )
-                                                     (split-string captures1 "\n"))))))
-             (captures (seq-filter (lambda (c)
-                                     (and
-                                      ;; NOTE: sometimes a newline gets put into captures1 or something
-                                      ;; which puts something like ("" . nil) when we do the split-string on ':'
-                                      ;; we want to make sure not to have any of those cause it can mess up the
-                                      ;; functionality below for replacing existing variables
-                                      (not (string-empty-p (car c)))
-                                      (cdr c)))
-                                   captures))
-             )
+             (sections (hurl-response--extract-sections))
+             (output-without-response (alist-get 'output-without-response sections))
+             (resp-head (alist-get 'resp-head sections))
+             (resp (alist-get 'resp sections))
+             (formatted-resp (condition-case nil
+                                 (hurl-response--format-response resp-head resp)
+                               (error (signal 'hurl-parse-error str))))
+             (captures (hurl-response--extract-captures)))
+        
         (with-current-buffer (get-buffer-create hurl-response--buffer-name)
           (erase-buffer)
           (hurl-response-mode)
           (insert output-without-response)
-          (when captures
-            (with-temp-file hurl-variables-file
-              ;; insert hurl-variables-file contents into buffer created by with-temp-file
-              ;; so that we can replace existing variables with updated ones from the new captures
-              (when (file-exists-p hurl-variables-file)
-                (insert-file-contents hurl-variables-file))
-              (seq-do
-               (lambda (e)
-                 ;; reuse variables file and replace values if needed
-                 (save-excursion
-                   (goto-char (point-min))
-                   (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
-                     ;; NOTE: this bit might be error prone, see the note above with the seq-filter on 'captures'
-                     (delete-line)))
-                 (insert (mapconcat #'string-trim e "=") "\n")
-                 )
-               captures
-               )
-              )
-            )
-          (insert formatted-resp "\n")
-          ))
+          
+          ;; Save captures if any
+          (hurl-response--save-captures captures)
+          
+          (insert formatted-resp "\n")))
+    
     ;; something wrong happened with parsing so just output everything
     (error
      (with-current-buffer (get-buffer-create hurl-response--buffer-name)
        (erase-buffer)
        (hurl-response-mode)
        (insert (with-current-buffer hurl-response--output-buffer-name (buffer-string)))
-       (insert (concat "\nhurl lisp error: " (prin1-to-string err)))))
-    )
+       (insert (concat "\nhurl lisp error: " (prin1-to-string err))))))
   )
 
 (defun hurl-response--verbose-filter (proc str)
