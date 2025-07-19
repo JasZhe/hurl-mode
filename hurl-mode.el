@@ -198,7 +198,7 @@ Setting this will adjust those settings only for the hurl process we create."
 
 ;; Hurl Filter Reference: https://hurl.dev/docs/filters.html
 (defconst hurl-mode--no-arg-filters
-  '("count" "daysAfterNow" "daysBeforeNow" "decode" "format" "htmlEscape" "htmlUnescape" "toDate" "toInt" "urlDecode" "urlEncode"))
+  '("base64Decode" "base64Encode" "count" "daysAfterNow" "daysBeforeNow" "decode" "format" "htmlEscape" "htmlUnescape" "toDate" "toInt" "urlDecode" "urlEncode"))
 (defconst hurl-mode--single-int-arg-filters '("nth"))
 (defconst hurl-mode--single-string-arg-filters '("regex" "split" "xpath"))
 (defconst hurl-mode--double-string-arg-filters `("replace"))

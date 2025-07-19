@@ -1,5 +1,4 @@
 GET https://dog.ceo/api/breeds/list/all
-
 HTTP 200
 [Captures]
 aus_breed: jsonpath "$.message.australian[1]"
