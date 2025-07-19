@@ -477,7 +477,7 @@ Otherwise do nothing."
     'noindent))
 
 ;;;###autoload
-(define-derived-mode hurl-mode text-mode "Hurl"
+(define-derived-mode hurl-mode hurl-base-mode "Hurl"
   "Enable hurl mode."
   ;; backward paragraph is set as the 'font-lock-mark-block-function see:
   ;; https://www.gnu.org/software/emacs/manual/html_node/elisp/Other-Font-Lock-Variables.html
@@ -485,9 +485,6 @@ Otherwise do nothing."
   ;; this is same as org-set-font-lock-defaults
   (setq-local font-lock-defaults '(hurl-mode-keywords t nil nil backward-paragraph))
   (setq-local font-lock-multiline t)
-  (setq-local comment-start "#")
-  (setq-local comment-start-skip "#+[\t ]*")
-  (setq-local indent-line-function 'hurl-indent-line)
   (setq-local js-indent-level 2)
   ;; HACK: for some reason font lock is broken when there are comments after
   ;; reverting the buffer, font-lock-update seems to fix it
@@ -509,6 +506,75 @@ Otherwise do nothing."
      hurl-outline-heading-alist
      ))
    (- (match-end 0) (match-beginning 0))))
+
+(define-derived-mode hurl-base-mode text-mode "Hurl"
+  (setq-local comment-start "#")
+  (setq-local comment-start-skip "#+[\t ]*")
+  (setq-local indent-line-function 'hurl-indent-line))
+
+
+(defvar hurl-ts-font-lock-rules
+  '(:language hurl
+    :feature request
+    ((request
+       [(method) @hurl-mode-method-face
+        (value_string) @hurl-mode-url-face
+        (header
+         [(key_value
+               [(key_string) @hurl-mode-variable-face
+                (value_string) @hurl-mode-variable-value-face])
+          (request_section [(_) @hurl-mode-section-face])])])
+     (response
+      [(response_section
+                 [(_) @hurl-mode-section-face])]))
+
+    :language hurl
+    :feature section
+    :override t
+    ((request
+       [(request_section
+          [(_
+            [
+             (option) @hurl-mode-variable-face
+             (key_value
+                  [
+                   (key_string) @hurl-mode-variable-face
+                   (value_string) @hurl-mode-variable-value-face])])])])
+     (response
+      [(version) @hurl-mode-method-face
+       (status) @hurl-mode-url-face
+       (response_section
+                 [(_) @hurl-mode-section-face])]))
+
+    :language hurl
+    :feature comment
+    :override t
+    ((comment) @font-lock-comment-face)
+    ))
+
+(defun hurl-ts-setup ()
+  (interactive)
+
+  (setq-local font-lock-defaults nil)
+
+  (setq-local treesit-font-lock-settings
+              (apply #'treesit-font-lock-rules
+                     hurl-ts-font-lock-rules))
+
+  (setq-local treesit-font-lock-feature-list
+              '((comment request) ;; level 1
+                (section) ;; level 2
+                (queries filters)
+                ()))
+
+  (treesit-major-mode-setup))
+
+
+(define-derived-mode hurl-ts-mode hurl-base-mode "Hurl[ts]"
+  (when (treesit-ready-p 'hurl)
+    (treesit-parser-create 'hurl)
+    (hurl-ts-setup)))
+
 
 ;;;###autoload
 (define-derived-mode hurl-response-mode text-mode "HurlRes"
