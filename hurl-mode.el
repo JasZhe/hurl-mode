@@ -89,7 +89,7 @@
   :group 'hurl-faces)
 
 (defface hurl-mode-filter-face
-  '((t (:inherit font-lock-builtin-face)))
+  '((t (:inherit font-lock-function-call-face)))
   "Face for hurl filters."
   :group 'hurl-faces)
 
@@ -173,7 +173,7 @@ Setting this will adjust those settings only for the hurl process we create."
   (rx-to-string `(: "{{" (* (or alnum "-" "_")) "}}")))
 
 (defconst hurl-mode--section-header-keywords
-  '("[QueryStringParams]" "[FormParams]" "[MultipartFormData]" "[BasicAuth]" "[Cookies]" "[Asserts]" "[Captures]" "[Options]"))
+  '("[QueryStringParams]" "[Query]" "[FormParams]" "[Form]" "[MultipartFormData]" "[Multipart]" "[BasicAuth]" "[Cookies]" "[Asserts]" "[Captures]" "[Options]"))
 (defconst hurl-mode--section-header-regexp
   (rx-to-string `(: bol
                   (or ,@hurl-mode--section-header-keywords))))
@@ -188,17 +188,28 @@ Setting this will adjust those settings only for the hurl process we create."
   '("header" "cookie" "xpath" "jsonpath" "regex" "variable"))
 
 (defconst hurl-mode--no-arg-queries
-  '("status" "url" "body" "duration" "sha256" "md5" "bytes"))
+  '("status" "url" "body" "duration" "sha256" "md5" "bytes" "ip" "version"))
 
 (defconst hurl-mode--certificate-attrs
   '("Subject" "Issuer" "Start-Date" "Expire-Date" "Serial-Number"))
 
+;; See: https://hurl.dev/docs/asserting-response.html#predicates
 (defconst hurl-mode--predicates
-  '("==" "!=" ">" ">=" "<" "<=" "startsWith" "endsWith" "contains" "includes" "matches" "exists" "isBoolean" "isCollection" "isDate" "isEmpty" "isFloat" "isInteger" "isString"))
+  '("==" "!=" ">" ">=" "<" "<="
+    "startsWith" "endsWith" "contains" "includes" "matches" "exists"
+    "isBoolean" "isCollection" "isEmpty"
+    "isDate" "isIsoDate"
+    "isIpv4" "isIpv6"
+    "isNumber" "isFloat" "isInteger"
+    "isString"))
 
 ;; Hurl Filter Reference: https://hurl.dev/docs/filters.html
 (defconst hurl-mode--no-arg-filters
-  '("base64Decode" "base64Encode" "count" "daysAfterNow" "daysBeforeNow" "decode" "format" "htmlEscape" "htmlUnescape" "toDate" "toInt" "urlDecode" "urlEncode"))
+  '("base64Decode" "base64Encode" "decode" "urlDecode" "urlEncode"
+    "count" "format"
+    "daysAfterNow" "daysBeforeNow"
+    "htmlEscape" "htmlUnescape"
+    "toDate" "toInt" "toFloat" "toString"))
 (defconst hurl-mode--single-int-arg-filters '("nth"))
 (defconst hurl-mode--single-string-arg-filters '("regex" "split" "xpath"))
 (defconst hurl-mode--double-string-arg-filters `("replace"))
@@ -430,8 +441,8 @@ the fontification is done."
 (defconst hurl-mode-options
   '("aws-sigv4" "cacert" "cert" "color" "compressed" "connect-timeout" "connect-to"
     "continue-on-error" "cookie" "cookie-jar" "delay" "error-format" "file-root"
-    "glob" "http1.0" "http1.1" "http2" "http3" "ignore-asserts" "include" "insecure"
-    "interactive" "ipv4" "ipv6" "json" "key" "location" "location-trusted" "max-redirs"
+    "glob" "header" "http1.0" "http1.1" "http2" "http3" "ignore-asserts" "include" "insecure"
+    "interactive" "ipv4" "ipv6" "json" "key" "limit-rate" "location" "location-trusted" "max-redirs"
     "max-time" "no-color" "no-output" "noproxy" "output" "path-as-is" "proxy"
     "report-html" "report-junit" "report-tap" "resolve" "retry" "retry-interval"
     "ssl-no-revoke" "test" "to-entry" "unix-socket" "user" "user-agent" "variable"
