@@ -27,11 +27,12 @@ It's recommended that this file be encrypted in some way. Currently only GPG is 
 TODO: allow users to insert their own decryption hook to read the secrets for other non-gpg encryption methods.
 
 ** Org Babel Integration
-Simple org babel implementation that passes the src block vars into the --variable option for the cli command
+Simple org babel implementation that passes the src block vars into the --variable option for the cli command.
+Secrets can also be added via =:secret= header, although not sure how useful that would be.
 
 Simple example:
 #+begin_example
-,#+begin_src hurl :results output :var host="https://httpbin.org/post"
+,#+begin_src hurl :results output :var host="https://httpbin.org/post" :secret token="mytoken"
 POST {{host}}
 ,#+end_src
 #+end_example

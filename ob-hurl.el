@@ -80,16 +80,23 @@ This function is called by `org-babel-execute-src-block'"
   (let* ((processed-params (org-babel-process-params params))
          ;; variables assigned for use in the block
          (vars (org-babel--get-vars processed-params))
+         ;; same as org-babel--get-vars but checking for :secret instead
+         (secrets (mapcar #'cdr
+	                  (cl-remove-if-not (lambda (x) (eq (car x) :secret)) params)))
          (in-file (org-babel-temp-file "hurl" ".hurl"))
          (hurl-vars (cl-reduce
                      (lambda (acc elem)
                        (concat acc (format "--variable %s=%s" (car elem) (cdr elem)) " "))
-                     vars :initial-value "")))
+                     vars :initial-value ""))
+         ;; not sure how useful secrets are for an org-babel block but it was an easy lift to add this
+         (hurl-secrets (cl-reduce
+                        (lambda (acc elem)
+                          (concat acc (format "--secret %s=%s" (car elem) (cdr elem)) " "))
+                        secrets :initial-value "")))
     (with-temp-file in-file
       (insert body))
     (org-babel-eval
-     (format "hurl %s %s" hurl-vars (org-babel-process-file-name in-file))
-     "")))
+     (format "hurl %s %s %s" hurl-vars hurl-secrets (org-babel-process-file-name in-file)) "")))
 
 (defun org-babel-hurl-var-to-hurl (var)
   "Convert an elisp var into a string of hurl source code
