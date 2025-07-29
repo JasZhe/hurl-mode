@@ -90,13 +90,13 @@ This function is called by `org-babel-execute-src-block'"
                      vars :initial-value ""))
          ;; not sure how useful secrets are for an org-babel block but it was an easy lift to add this
          (hurl-secrets (cl-reduce
-                        (lambda (acc elem)
-                          (concat acc (format "--secret %s=%s" (car elem) (cdr elem)) " "))
+                        (lambda (acc secret) ;; secret is the full var="value"
+                          (concat acc (format "--secret %s" secret) " "))
                         secrets :initial-value "")))
     (with-temp-file in-file
       (insert body))
     (org-babel-eval
-     (format "hurl %s %s %s" hurl-vars hurl-secrets (org-babel-process-file-name in-file)) "")))
+     (format "hurl --verbose %s %s %s" hurl-vars hurl-secrets (org-babel-process-file-name in-file)) "")))
 
 (defun org-babel-hurl-var-to-hurl (var)
   "Convert an elisp var into a string of hurl source code
