@@ -6,7 +6,7 @@
 ;; Maintainer: Jason Zhen
 ;; Created: November 17, 2023
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "28.2"))
+;; Package-Requires: ((emacs "29.2"))
 ;; URL: https://github.com/JasZhe/hurl-mode
 ;;
 ;; This file is not part of GNU Emacs.
@@ -30,6 +30,7 @@
 ;;
 ;;; Commentary:
 ;; simple major mode for editing hurl files
+;; emacs-29 is required for js-json-mode and json-ts-mode
 
 ;;; Code:
 
@@ -37,9 +38,10 @@
 (require 'org-src)
 (require 'js)
 (require 'sgml-mode)
-(require 'json-mode nil 'no-error) ;; if json-mode isn't available we'll try to fallback to jq or something
-(require 'json-ts-mode nil 'no-error) ;; optionally require json-ts-mode
+(require 'json-ts-mode)
 (require 'outline)
+
+(require 'json-mode nil 'no-error) ;; use json-mode over js-json-mode if available
 
 (eval-when-compile
   (require 'rx))
@@ -253,7 +255,14 @@ and not search beyond the limit"
         (save-match-data
           (remove-text-properties block-start block-end '(face nil))
           (let ((string (buffer-substring-no-properties block-start block-end))
-                (lang-mode (org-src-get-lang-mode lang))
+                (lang-mode (pcase lang
+                             ("json" (cond
+                                      ((and hurl-mode-use-json-ts-mode
+                                            (treesit-available-p) (treesit-language-available-p 'json))
+                                       'json-ts-mode)
+                                      ((fboundp 'jsonc-mode) 'jsonc-mode)
+                                      (t 'js-json-mode)))
+                             (_ (org-src-get-lang-mode lang))))
                 (my-buffer (current-buffer)))
             (if (fboundp lang-mode)
                 ;; for debugging purposes having a real (hidden) buffer to see what's being fontified is nice (org does this)
@@ -268,13 +277,10 @@ and not search beyond the limit"
                       (dolist (prop (append '(font-lock-face face) font-lock-extra-managed-props))
                         (let ((new-prop (get-text-property pos prop)))
                           (when (not (eq prop 'invisible))
-                            (put-text-property (+ block-start (1- pos)) (1- (+ block-start next)) prop new-prop my-buffer)))
-                        )
-                      (setq pos next))
-                    ))
+                            (put-text-property (+ block-start (1- pos)) (1- (+ block-start next)) prop new-prop my-buffer))))
+                      (setq pos next))))
               ;; otherwise if lang not found just fontify with body face
-              (add-text-properties block-start block-end `(font-lock-fontified t font-lock-multiline t face hurl-mode-body-face))
-              )))
+              (add-text-properties block-start block-end `(font-lock-fontified t font-lock-multiline t face hurl-mode-body-face)))))
         ;; this t is really important to indicate that the match succeeded, or else the match data gets unset.
         ;; see: https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fontification.html
         ;; for reference on function based fontification.
@@ -293,8 +299,7 @@ An empty string (no chars in between the quotes) is matched separately.")
        (: (group (or ,@hurl-mode--arg-queries)) blank
           (group ,string-arg-with-escaped-quote))
        (: (group "certificate") blank
-          (group (or ,@hurl-mode--certificate-attrs))
-          ))
+          (group (or ,@hurl-mode--certificate-attrs))))
   "Regex to match queries.
 See: https://hurl.dev/docs/grammar.html#query
 Some do not require any arguments. Some require a single argument.
@@ -311,9 +316,7 @@ See `hurl-variable-and-capture-matcher' for more details."
    nil
    '(beginning-of-line)
    '(1 'hurl-mode-filter-face t)
-   '(2 'hurl-mode-query-arg-face t)
-   )
-  )
+   '(2 'hurl-mode-query-arg-face t)))
 
 (defun hurl--double-string-arg-filter-matcher ()
   "Intended to be used as anchored-highlighter fontification for \"filters\".
@@ -326,9 +329,7 @@ See `hurl-variable-and-capture-matcher' for more details."
    '(beginning-of-line)
    '(1 'hurl-mode-filter-face t)
    '(2 'hurl-mode-query-arg-face t)
-   '(3 'hurl-mode-query-arg-face t)
-   )
-  )
+   '(3 'hurl-mode-query-arg-face t)))
 
 (defun hurl--int-arg-filter-matcher ()
   "Intended to be used as anchored-highlighter fontification for \"filters\".
@@ -340,9 +341,7 @@ See `hurl-variable-and-capture-matcher' for more details."
    nil
    '(beginning-of-line)
    '(1 'hurl-mode-filter-face t)
-   '(2 'font-lock-constant-face t)
-   )
-  )
+   '(2 'font-lock-constant-face t)))
 
 (defun hurl--no-arg-filter-matcher ()
   "Intended to be used as anchored-highlighter fontification for \"filters\".
@@ -351,9 +350,7 @@ See `hurl-variable-and-capture-matcher' for more details."
    (rx-to-string `(: (group (or ,@hurl-mode--no-arg-filters))))
    nil
    '(beginning-of-line)
-   '(0 'hurl-mode-filter-face t)
-   )
-  )
+   '(0 'hurl-mode-filter-face t)))
 
 (defun hurl-variable-and-capture-matcher ()
   "Matcher-highlighter fontification for \"captures\".
@@ -394,9 +391,7 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fonti
    (hurl--int-arg-filter-matcher)
    (hurl--no-arg-filter-matcher)
    ;; fontify the rest for non capture type variables
-   (list ".*" nil nil '(0 'font-lock-string-face nil))
-   )
-  )
+   (list ".*" nil nil '(0 'font-lock-string-face nil))))
 
 (defun hurl-assert-matcher ()
   "Matcher-highlighter fontification for \"asserts\".
@@ -446,8 +441,7 @@ the fontification is done."
     "max-time" "no-color" "no-output" "noproxy" "output" "path-as-is" "proxy"
     "report-html" "report-junit" "report-tap" "resolve" "retry" "retry-interval"
     "ssl-no-revoke" "test" "to-entry" "unix-socket" "user" "user-agent" "variable"
-    "variables-file" "verbose" "very-verbose" "help" "version")
-  )
+    "variables-file" "verbose" "very-verbose" "help" "version"))
 
 (defun hurl-inside-block-p ()
   "Return t if inside hurl body block, nil otherwise.
@@ -491,8 +485,7 @@ Otherwise do nothing."
   (setq-local js-indent-level 2)
   ;; HACK: for some reason font lock is broken when there are comments after
   ;; reverting the buffer, font-lock-update seems to fix it
-  (add-hook 'after-revert-hook (lambda () (font-lock-update)) nil t)
-  )
+  (add-hook 'after-revert-hook (lambda () (font-lock-update)) nil t))
 
 ;; so we don't get auto ` pairing if smartparens mode exists
 (eval-after-load 'smartparens-mode
@@ -506,8 +499,7 @@ Otherwise do nothing."
     (cl-find-if
      (lambda (h)
        (string-match-p (car h) (match-string 0)))
-     hurl-outline-heading-alist
-     ))
+     hurl-outline-heading-alist))
    (- (match-end 0) (match-beginning 0))))
 
 ;;;###autoload
@@ -524,8 +516,7 @@ Each req/resp body is also its own block."
           ("\\* Request:" . 2)
           ("\\* Request body:" . 2)
           ("\\* Response:" . 2)
-          ("\\* Response body:" . 2)
-          ))
+          ("\\* Response body:" . 2)))
 
   ;; Don't want any fontification cause we're manually setting text properties with hurl--fontify-using-faces
   ;; and ansi-color-apply-on-region.
@@ -553,8 +544,7 @@ Each req/resp body is also its own block."
          (end (cdr bds)))
     (if (and start end)
         (list start end hurl-mode-options . nil)
-      (list (point) (point) hurl-mode-options . nil)
-      )))
+      (list (point) (point) hurl-mode-options . nil))))
 
 (defun hurl--read-args ()
   "Read user input until empty.
@@ -567,8 +557,7 @@ Prefixes every string with -- for convenience."
                                     (add-hook 'completion-at-point-functions
                                               #'hurl-options-completion-at-point nil t))
                                 (read-string "cli option (empty input finishes): --")))))
-      (setq all-options (concat all-options " --" option))
-      )
+      (setq all-options (concat all-options " --" option)))
     all-options))
 
 (define-error 'hurl-json-parse-error "Hurl-mode: Error parsing response using json.el")
@@ -585,7 +574,7 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
     text))
 
 (defun hurl-response--format-json (json)
-  "Format JSON string keeping json-mode's fontification. Assumes `json-mode' or `json-ts-mode' are available."
+  "Format JSON string keeping `js-json-mode's fontification. Assumes `js-json-mode' or `json-ts-mode' are available."
   (with-temp-buffer
     (erase-buffer)
     (insert json)
@@ -594,16 +583,16 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
         (json-pretty-print (point-min) (point-max))
       (json-readtable-error
        (signal 'hurl-json-parse-error json)))
-    (if (and hurl-mode-use-json-ts-mode (fboundp 'json-ts-mode) (treesit-available-p) (treesit-language-available-p 'json))
-        (progn
-          (delay-mode-hooks (json-ts-mode))
-          (font-lock-default-function 'json-ts-mode)
-          )
-      (when (fboundp 'jsonc-mode)
-        (delay-mode-hooks (jsonc-mode))
-        (font-lock-default-function 'jsonc-mode)
-        )
-      )
+    (cond
+     ((and hurl-mode-use-json-ts-mode (treesit-available-p) (treesit-language-available-p 'json))
+      (delay-mode-hooks (json-ts-mode))
+      (font-lock-default-function 'json-ts-mode))
+     ((fboundp 'json-mode)
+      (delay-mode-hooks (json-mode))
+      (font-lock-default-function 'json-mode))
+     (t
+      (js-json-mode)
+      (font-lock-default-function 'js-json-mode)))
     (font-lock-default-fontify-region (point-min) (point-max) nil)
     (hurl--fontify-using-faces (buffer-string))))
 
@@ -622,12 +611,8 @@ If not possible, return the resp as is."
                          (format "timeout 3 echo %s | %s -C -R '. as $line | try (fromjson) catch $line'"
                                  (shell-quote-argument resp)
                                  jq-command))))
-               cmd)
-             )
-            )))
-    (if (string-empty-p jq-output) resp jq-output)
-    )
-  )
+               cmd)))))
+    (if (string-empty-p jq-output) resp jq-output)))
 
 (defun hurl-response--format-xml (resp)
   "Format xml RESP using `sgml-pretty-print' and keeping sgml mode's fontification."
@@ -638,8 +623,7 @@ If not possible, return the resp as is."
     (font-lock-default-function 'sgml-mode)
     (font-lock-default-fontify-region (point-min) (point-max) nil)
     (sgml-pretty-print (point-min) (point-max))
-    (hurl--fontify-using-faces (buffer-string)))
-  )
+    (hurl--fontify-using-faces (buffer-string))))
 
 (defun hurl-response--parse-and-filter-output (&optional variables-filename)
   "Filters the hurl --verbose output STR from PROC to what we care about.
@@ -690,10 +674,10 @@ Otherwise use the default `hurl-variables-file'."
                     (cond ((string-match "Content-Type: application/json" resp-head)
                            (condition-case err
                                (insert (hurl-response--format-json resp))
-                             ;; on error i.e if json-mode or json-ts-mode aren't available tries to fall back to jq
+                             ;; on error i.e if js-json-mode or json-ts-mode aren't available tries to fall back to jq
                              (error
                               ;; disable fallback to jq on remote. Talking to remote jq process can be very slow
-                              ;; most of the time formatting with json-mode should be good enough and is much faster
+                              ;; most of the time formatting with js-json-mode should be good enough and is much faster
                               (if (not (file-remote-p default-directory))
                                   (insert (hurl-response--format-json-with-jq resp))
 
@@ -705,11 +689,7 @@ Otherwise use the default `hurl-variables-file'."
                                               (progn
                                                 (json-pretty-print (point-min) (point-max))
                                                 (buffer-string))
-                                            (error resp))))
-                                )
-                              )
-                             )
-                           )
+                                            (error resp))))))))
                           ((or (string-match "Content-Type: text/xml" resp-head)
                                (string-match "Content-Type: application/xml" resp-head)
                                (string-match "Content-Type: text/html" resp-head))
@@ -738,8 +718,7 @@ Otherwise use the default `hurl-variables-file'."
                                              ;; TODO maybe we extract this part out cause its same code as for resp
                                              (cl-map 'list (lambda (s)
                                                              (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
-                                                               (substring s (match-beginning 1) (match-end 1)))
-                                                             )
+                                                               (substring s (match-beginning 1) (match-end 1))))
                                                      (split-string captures1 "\n"))))))
              (captures (seq-filter (lambda (c)
                                      (and
@@ -749,8 +728,7 @@ Otherwise use the default `hurl-variables-file'."
                                       ;; functionality below for replacing existing variables
                                       (not (string-empty-p (car c)))
                                       (cdr c)))
-                                   captures))
-             )
+                                   captures)))
         (with-current-buffer (get-buffer-create hurl-response--buffer-name)
           (erase-buffer)
           (hurl-response-mode)
@@ -769,30 +747,23 @@ Otherwise use the default `hurl-variables-file'."
                    (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
                      ;; NOTE: this bit might be error prone, see the note above with the seq-filter on 'captures'
                      (delete-line)))
-                 (insert (mapconcat #'string-trim e "=") "\n")
-                 )
-               captures
-               )
-              )
-            )
-          (insert formatted-resp "\n")
-          ))
+                 (insert (mapconcat #'string-trim e "=") "\n"))
+               captures)))
+          (insert formatted-resp "\n")))
     ;; something wrong happened with parsing so just output everything
     (error
      (with-current-buffer (get-buffer-create hurl-response--buffer-name)
        (erase-buffer)
        (hurl-response-mode)
        (insert (with-current-buffer hurl-response--output-buffer-name (buffer-string)))
-       (insert (concat "\nhurl lisp error: " (prin1-to-string err)))))
-    )
-  )
+       (insert (concat "\nhurl lisp error: " (prin1-to-string err)))))))
+
 
 (defun hurl-response--verbose-filter (proc str)
   "Simple process filter for use in `set-process-filter'.
 Just applies ansi color to the STR that come in from the hurl PROC."
   (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
     (insert (ansi-color-apply str))))
-
 
 
 (defun hurl-mode--read-secrets-file ()
@@ -886,23 +857,20 @@ With prefix ARG, prompts for additional arguments to send to hurl."
                                            (with-current-buffer hurl-response--output-buffer-name
                                              (ansi-color-apply-on-region (point-min) (point-max)))
                                            (display-buffer hurl-response--buffer-name)
-                                           (delete-file hurl-mode--temp-file-name)))
-                           ))
+                                           (delete-file hurl-mode--temp-file-name)))))
 
 
 (defun hurl-mode-test-request-file (arg)
   "Hurl wrapper function to send file for testing.
 With prefix ARG, prompts for additional arguments to send to hurl."
   (interactive "P")
-  (hurl-mode--send-request "--test")
-  )
+  (hurl-mode--send-request "--test"))
 
 (defun hurl-mode-test-request-single (arg)
   "Hurl wrapper function to send the request at point for testing.
 With prefix ARG, prompts for additional arguments to send to hurl."
   (interactive "P")
-  (hurl-mode--send-request "--test")
-  )
+  (hurl-mode--send-request "--test"))
 
 (setq hurl-mode-map
       (let ((map (make-sparse-keymap)))
