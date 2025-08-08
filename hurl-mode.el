@@ -897,6 +897,9 @@ With prefix ARG, prompts for additional arguments to send to hurl."
         (define-key map (kbd "C-c <") #'outline-previous-heading)
         map))
 
+;;;###autoload
+(add-to-list 'auto-mode-alist '("\\.hurl\\'" . hurl-mode))
+
 (provide 'hurl-mode)
 ;;; hurl-mode.el ends here
 ;; Local Variables:
