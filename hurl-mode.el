@@ -125,6 +125,19 @@
   "Face for templates."
   :group 'hurl-faces)
 
+(defcustom hurl-global-secrets-file "~/.hurl-secrets.gpg"
+  "Location of global secrets file to use in hurl requests.
+
+Format should be NAME=VALUE as specified in hurl's --secret option.
+All variables in here will be sent via the --secret option in hurl.
+
+This file is HIGHLY encouraged to be encrypted.
+Emacs has built in support for handling GPG files.
+
+Other encryption methods will need custom handling.
+TODO: Need a way for users to hook into the request to decrypt secrets file."
+  :type '(string))
+
 (defcustom hurl-secrets-file ".secrets.gpg"
   "Name of secrets file to use in hurl requests.
 
@@ -138,8 +151,30 @@ Other encryption methods will need custom handling.
 TODO: Need a way for users to hook into the request to decrypt secrets file."
   :type '(string))
 
+(defcustom hurl-global-variables-file "~/.hurl-variables"
+  "Name of global variables file to automatically use in hurl requests.
+
+Format should be NAME=VALUE as specified in hurl's --variable option.
+All variables in here will be sent via the --variable option in hurl.
+
+NOTE: experimentally it seems that the latter variables file specified
+in the hurl command overwrites values with the same key as the earlier
+variables file. What this means for us is that the local variables
+file takes precedence.
+This behaviour should NOT be relied upon however."
+  :type '(string))
+
 (defcustom hurl-variables-file ".hurl-variables"
-  "Name of variables file to automatically use in hurl requests."
+  "Name of variables file to automatically use in hurl requests.
+
+Format should be NAME=VALUE as specified in hurl's --variable option.
+All variables in here will be sent via the --variable option in hurl.
+
+NOTE: experimentally it seems that the latter variables file specified
+in the hurl command overwrites values with the same key as the earlier
+variables file. What this means for us is that the local variables
+file takes precedence.
+This behaviour should NOT be relied upon however."
   :type '(string))
 
 (defcustom hurl-mode-use-netrc-file nil
@@ -765,10 +800,12 @@ Just applies ansi color to the STR that come in from the hurl PROC."
   (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
     (insert (ansi-color-apply str))))
 
-
-(defun hurl-mode--read-secrets-file ()
-  "Read `hurl-secrets-file' and return a list of secret key value pairs."
+(defun hurl-mode--read-secrets-files ()
+  "Read `hurl-secrets-file' and `hurl-global-secrets-file'.
+Return a list of strings of the form key=value."
   (with-temp-buffer
+    (when (file-exists-p hurl-global-secrets-file)
+      (insert-file-contents hurl-global-secrets-file))
     (when (file-exists-p hurl-secrets-file)
       (insert-file-contents hurl-secrets-file))
     (let ((secrets '()))
@@ -777,18 +814,26 @@ Just applies ansi color to the STR that come in from the hurl PROC."
         (forward-line 1))
       secrets)))
 
-
 (defun hurl-mode--send-request (&optional args file-name proc-sentinel)
   "Spawns a process to execute the hurl request.
 `ARGS' are hurl cli arguments.
 This function will always include --very-verbose.
 A prefix arg will prompt for additional args.
-If a `hurl-variables-file' exists, include --variables-file.
+
+Adds all variables and secrets from `hurl-variables-file',
+`hurl-global-variables-file', `hurl-secrets-file', `hurl-global-secrets-file'
+respectively via the --variables-file or --secret options.
+
+NOTE: experimentally it seems that the latter variables file specified
+in the hurl command overwrites values with the same key as the earlier
+variables file. What this means for us is that the local variables
+file takes precedence.
+This behaviour should NOT be relied upon however.
 
 If `FILE-NAME' is provided, then use it.
 Otherwise use the current buffer file.
 
-If `PROC-SENTINEL' is provided, then set it for the hurl process."
+If `PROC-SENTINEL' is provided, then set it for the hurl process. "
   (save-buffer) ;; this saves the current hurl file
   (let* ((args (concat args
                        " --very-verbose"
@@ -796,9 +841,11 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
                          (concat " --netrc-file " hurl-mode-netrc-file))
                        (mapconcat
                         (lambda (secret) (concat " --secret " secret))
-                        (hurl-mode--read-secrets-file))
+                        (hurl-mode--read-secrets-files))
                        (when current-prefix-arg
                          (hurl--read-args))
+                       (when (file-exists-p hurl-variables-file)
+                         (concat " --variables-file " hurl-global-variables-file))
                        (when (file-exists-p hurl-variables-file)
                          (concat " --variables-file " hurl-variables-file))))
          (cmd (concat "hurl" " " args " " (if file-name file-name (buffer-file-name)))))
