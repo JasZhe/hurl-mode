@@ -765,7 +765,7 @@ If not possible, return the resp as is."
                            ;; TODO maybe we extract this part out cause its same code as for resp
                            (cl-map 'list (lambda (s)
                                            (when (string-match (rx-to-string `(: bol "*"  (group (0+ nonl)))) s)
-                                             (substring s (match-beginning 1) (match-end 1))))
+                                             (substring-no-properties s (match-beginning 1) (match-end 1))))
                                    (split-string raw-captures "\n"))))))))
 
 (defun hurl-response--parse-and-filter-output (&optional variables-filename)
@@ -805,7 +805,7 @@ Currently supports formatting:
                  (save-excursion
                    (goto-char (point-min))
                    (when (re-search-forward (concat (string-trim (car e)) "=") nil t)
-                     ;; NOTE: this bit might be error prone, see the note above with the seq-filter on 'captures'
+                     ;; NOTE: this bit might be error prone, see the note above with the seq-filter on hurl-response--get-captures
                      (delete-line)))
                  (insert (mapconcat #'string-trim e "=") "\n"))
                captures)))
@@ -871,7 +871,7 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
                         (hurl-mode--read-secrets-files))
                        (when current-prefix-arg
                          (hurl--read-args))
-                       (when (file-exists-p hurl-variables-file)
+                       (when (file-exists-p hurl-global-variables-file)
                          (concat " --variables-file " hurl-global-variables-file))
                        (when (file-exists-p hurl-variables-file)
                          (concat " --variables-file " hurl-variables-file))))
