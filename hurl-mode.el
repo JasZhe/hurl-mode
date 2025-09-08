@@ -567,8 +567,17 @@ Each req/resp body is also its own block."
 (defvar hurl-response--output-buffer-name "*hurl-temp-output*"
   "Name of temporary buffer to hold process output for parsing later.")
 
+(defvar hurl-response--raw-output-buffer-name " *hurl-raw-output"
+  "Name of temporary buffer to hold raw process output.
+No ansi code processing or anything.
+This is used for parsing image bytes for instance.")
+
 (defvar hurl-response--process-buffer-name "*hurl-process*"
   "Name of buffer where the hurl process runs in.")
+
+(defvar hurl--image-saved-to-clipboard nil
+  "Whether or not there's an image saved to clipboard.
+If there is, We should yank into the response buffer.")
 
 (defconst hurl-mode--temp-file-name ".temp-request.hurl")
 
@@ -702,6 +711,7 @@ If not possible, return the resp as is."
 
 (defun hurl-response--formatted-response (resp-head resp)
   "Format RESP according to RESP-HEAD."
+  (setq hurl--image-saved-to-clipboard nil)
   (condition-case nil
       (with-temp-buffer
         ;; TODO: inline picture if the response is a png/jpg/pdf etc..
@@ -733,6 +743,15 @@ If not possible, return the resp as is."
                     (goto-char (point-min))
                     (re-search-forward "^[^\\*<>].*$")
                     (buffer-substring (line-beginning-position) (point-max)))))
+              ((string-match "content-type: image/.*" (downcase resp-head))
+               (with-current-buffer hurl-response--raw-output-buffer-name
+                 (goto-char (point-min))
+                 (while (or (string-match-p ".*\\[1;3" (buffer-substring-no-properties (line-beginning-position) (line-end-position)))
+                            (string-match-p "^[<>]$" (buffer-substring-no-properties (line-beginning-position) (line-end-position))))
+                   (delete-line))
+                 (image-mode)
+                 (clipboard-kill-ring-save (point-min) (point-max)))
+               (setq hurl--image-saved-to-clipboard t))
               ((or (string-match "Content-Type: text/xml" resp-head)
                    (string-match "Content-Type: application/xml" resp-head)
                    (string-match "Content-Type: text/html" resp-head))
@@ -821,7 +840,9 @@ Currently supports formatting:
                      (delete-line)))
                  (insert (mapconcat #'string-trim e "=") "\n"))
                captures)))
-          (insert formatted-resp "\n")))
+          (insert formatted-resp "\n")
+          (when hurl--image-saved-to-clipboard
+            (clipboard-yank))))
     ;; something wrong happened with parsing so just output everything
     (error
      (with-current-buffer (get-buffer-create hurl-response--buffer-name)
@@ -835,7 +856,9 @@ Currently supports formatting:
   "Simple process filter for use in `set-process-filter'.
 Just applies ansi color to the STR that come in from the hurl PROC."
   (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
-    (insert (ansi-color-apply str))))
+    (insert (ansi-color-apply str)))
+  (with-current-buffer (get-buffer-create hurl-response--raw-output-buffer-name)
+    (insert str)))
 
 (defun hurl-mode--read-secrets-files ()
   "Read `hurl-secrets-file' and `hurl-global-secrets-file'.
@@ -876,6 +899,7 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
   (save-buffer) ;; this saves the current hurl file
   (let* ((args (concat args
                        " --very-verbose"
+                       " --output -"  ;; hurl will output image bytes to stdout
                        (when hurl-mode-use-netrc-file
                          (concat " --netrc-file " hurl-mode-netrc-file))
                        (mapconcat
@@ -889,6 +913,7 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
                          (concat " --variables-file " hurl-variables-file))))
          (cmd (concat "hurl" " " args " " (if file-name file-name (buffer-file-name)))))
     (ignore-errors (kill-buffer hurl-response--output-buffer-name))
+    (ignore-errors (kill-buffer hurl-response--raw-output-buffer-name))
     (get-buffer-create hurl-response--output-buffer-name)
     (when-let ((buf (get-buffer hurl-response--process-buffer-name))) (kill-buffer buf))
     (let* ((read-process-output-max (if hurl-use-fast-process-settings (* 64 1024 1024) read-process-output-max))
@@ -901,6 +926,10 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
         (when hurl-use-fast-process-settings
           (setq-local read-process-output-max (* 64 1024 1024)
                       process-adaptive-read-buffering nil)))
+
+      ;; not sure if this is entirely needed for the raw output buffer for processing
+      ;; image bytes but keeping it just in case
+      (set-process-coding-system proc 'raw-text)
 
       (when proc-sentinel
         (set-process-sentinel proc proc-sentinel))

@@ -47,6 +47,17 @@ There's a separate mode for the hurl response buffer.
 Outline-minor-mode is automatically enabled in the response buffer with some custom outline methods.
 This makes it easy to navigate and see all the responses from the very-verbose output.
 
+
+*** Image output
+If we detect an image content type, we'll try to parse it and display it in the response buffer.
+
+To output the image to a file as well.
+#+begin_src hurl
+[Options]
+output: outputfile
+#+end_src
+
+
 ** Screenshot
 | [[file:screenshots/dark.png]] | [[file:screenshots/light.png]] |
 
