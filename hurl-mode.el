@@ -724,6 +724,15 @@ If not possible, return the resp as is."
                                     (json-pretty-print (point-min) (point-max))
                                     (buffer-string))
                                 (error resp))))))))
+              ((string-match "content-type: application/octet-stream" (downcase resp-head))
+               ;; the last part of the output that isn't prefixed with *, <, or > is raw byte output
+               ;; decoded by hurl. Otherwise, for octet-stream, this would just be Bytes <...> which isn't
+               ;; very helpful
+               (insert
+                (with-current-buffer hurl-response--output-buffer-name
+                    (goto-char (point-min))
+                    (re-search-forward "^[^\\*<>].*$")
+                    (buffer-substring (line-beginning-position) (point-max)))))
               ((or (string-match "Content-Type: text/xml" resp-head)
                    (string-match "Content-Type: application/xml" resp-head)
                    (string-match "Content-Type: text/html" resp-head))
