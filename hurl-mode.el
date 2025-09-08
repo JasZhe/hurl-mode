@@ -779,6 +779,9 @@ Currently supports formatting:
 - json via. json.el or fallback to jq if available
 - xml/html via sgml-mode.el."
 
+  ;; want a fresh buffer, otherwise we don't change default directory which can
+  ;; mess up which file we save captures to
+  (ignore-errors (kill-buffer hurl-response--buffer-name))
   (condition-case err
       ;; filter using capture groups, anychar is used because we want newlines
       ;; there's always a Response and Response body luckily
