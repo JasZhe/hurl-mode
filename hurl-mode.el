@@ -835,7 +835,9 @@ Return a list of strings of the form key=value."
       (insert-file-contents hurl-secrets-file))
     (let ((secrets '()))
       (while (not (eobp))
-        (cl-pushnew (buffer-substring-no-properties (line-beginning-position) (line-end-position)) secrets)
+        (let ((line (buffer-substring-no-properties (line-beginning-position) (line-end-position))))
+          (when (string-match ".*=.*" line)
+            (cl-pushnew line secrets)))
         (forward-line 1))
       secrets)))
 
