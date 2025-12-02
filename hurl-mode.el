@@ -237,18 +237,20 @@ Setting this will adjust those settings only for the hurl process we create."
     "isBoolean" "isCollection" "isEmpty"
     "isDate" "isIsoDate"
     "isIpv4" "isIpv6"
-    "isNumber" "isFloat" "isInteger"
+    "isNumber" "isFloat" "isInteger" "isObject" "isList"
     "isString"))
 
 ;; Hurl Filter Reference: https://hurl.dev/docs/filters.html
 (defconst hurl-mode--no-arg-filters
-  '("base64Decode" "base64Encode" "decode" "urlDecode" "urlEncode"
-    "count" "format"
+  '("base64Decode" "base64UrlSafeDecode" "base64Encode" "base64UrlSafeEncode"
+    "utf8Encode" "utf8Decode"
+    "decode" "urlDecode" "urlEncode" "location"
+    "count" "format" "first" "last"
     "daysAfterNow" "daysBeforeNow"
     "htmlEscape" "htmlUnescape"
-    "toDate" "toInt" "toFloat" "toString"))
+    "toDate" "toInt" "toFloat" "toString" "toHex"))
 (defconst hurl-mode--single-int-arg-filters '("nth"))
-(defconst hurl-mode--single-string-arg-filters '("regex" "split" "xpath"))
+(defconst hurl-mode--single-string-arg-filters '("regex" "split" "xpath" "urlQueryParam"))
 (defconst hurl-mode--double-string-arg-filters `("replace"))
 
 
@@ -474,7 +476,7 @@ the fontification is done."
     "continue-on-error" "cookie" "cookie-jar" "delay" "error-format" "file-root"
     "glob" "header" "http1.0" "http1.1" "http2" "http3" "ignore-asserts" "include" "insecure"
     "interactive" "ipv4" "ipv6" "json" "key" "limit-rate" "location" "location-trusted" "max-redirs"
-    "max-time" "no-color" "no-output" "noproxy" "output" "path-as-is" "proxy"
+    "max-time" "negotiate" "no-color" "no-output" "noproxy" "ntlm" "output" "path-as-is" "pinnedpubkey" "proxy"
     "report-html" "report-junit" "report-tap" "resolve" "retry" "retry-interval"
     "ssl-no-revoke" "test" "to-entry" "unix-socket" "user" "user-agent" "variable"
     "variables-file" "verbose" "very-verbose" "help" "version"))
