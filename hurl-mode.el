@@ -217,9 +217,9 @@ Setting this will adjust those settings only for the hurl process we create."
 
 (defconst hurl-mode--expected-response-regexp
   (rx-to-string `(: bol
-                  (group "HTTP")
+                  (group "HTTP" (? "/" digit (? "." digit)))
                   (+ blank)
-                  (group (= 3 digit)))))
+                  (group (or (= 3 digit) "*")))))
 
 (defconst hurl-mode--arg-queries
   '("header" "cookie" "xpath" "jsonpath" "regex" "variable"))
