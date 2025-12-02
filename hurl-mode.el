@@ -425,6 +425,7 @@ https://www.gnu.org/software/emacs/manual/html_node/elisp/Search_002dbased-Fonti
    (hurl--double-string-arg-filter-matcher)
    (hurl--int-arg-filter-matcher)
    (hurl--no-arg-filter-matcher)
+   (list (rx-to-string `(: blank "redact")) nil nil '(0 'hurl-mode-pred-negation-face))
    ;; fontify the rest for non capture type variables
    (list ".*" nil nil '(0 'font-lock-string-face nil))))
 
