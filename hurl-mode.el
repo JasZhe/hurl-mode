@@ -903,7 +903,7 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
                        (when hurl-mode-use-netrc-file
                          (concat " --netrc-file " hurl-mode-netrc-file))
                        (mapconcat
-                        (lambda (secret) (concat " --secret " secret))
+                        (lambda (secret) (concat " --secret " (shell-quote-argument secret)))
                         (hurl-mode--read-secrets-files))
                        (when current-prefix-arg
                          (hurl--read-args))
