@@ -930,10 +930,6 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
           (setq-local read-process-output-max (* 64 1024 1024)
                       process-adaptive-read-buffering nil)))
 
-      ;; not sure if this is entirely needed for the raw output buffer for processing
-      ;; image bytes but keeping it just in case
-      (set-process-coding-system proc 'raw-text)
-
       (when proc-sentinel
         (set-process-sentinel proc proc-sentinel))
       (set-process-filter proc #'hurl-response--verbose-filter))))
