@@ -141,11 +141,18 @@ Return a string of hurl --secret arguments."
   "Return only the formatted response body from hurl verbose output."
   (condition-case nil
       (let* ((resp-head (hurl-response--get-response-head))
-             (resp (hurl-response--preprocess-response)))
+             (resp-raw (hurl-response--raw-response))
+             (resp (hurl-response--preprocess-response))
+             (formatted-resp (hurl-response--formatted-response resp-head resp)))
         ;; `async-start' serializes strings with text properties as lists.
         ;; Babel then treats the result as a table rather than response text.
         (substring-no-properties
-         (concat (hurl-response--formatted-response resp-head resp) "\n")))
+         (concat
+          (if (string-match-p
+               "^Bytes <[0-9a-fA-F]+\\(\\.\\.\\.\\)?>$" formatted-resp)
+              resp-raw
+            formatted-resp)
+          "\n")))
     (error
      (with-current-buffer hurl-response--output-buffer-name
        (buffer-substring-no-properties (point-min) (point-max))))))
