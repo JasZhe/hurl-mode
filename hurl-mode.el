@@ -620,6 +620,7 @@ Reference: https://emacs.stackexchange.com/questions/5400/fontify-a-region-of-a-
     (add-text-properties 0  (length text) '(fontified t) text)
     text))
 
+;; TODO: if hurl version >= 7.1, then json is auto parsed
 (defun hurl-response--format-json (json)
   "Format JSON string keeping `js-json-mode's fontification. Assumes `js-json-mode' or `json-ts-mode' are available."
   (with-temp-buffer
@@ -908,8 +909,6 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
                        (mapconcat
                         (lambda (secret) (concat " --secret " (shell-quote-argument secret)))
                         (hurl-mode--read-secrets-files))
-                       (when current-prefix-arg
-                         (hurl--read-args))
                        (when (file-exists-p hurl-global-variables-file)
                          (concat " --variables-file " hurl-global-variables-file))
                        (when (file-exists-p hurl-variables-file)
@@ -934,11 +933,8 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
         (set-process-sentinel proc proc-sentinel))
       (set-process-filter proc #'hurl-response--verbose-filter))))
 
-
-(defun hurl-mode-send-request-single (arg)
-  "Simple thin wrapper which sends the request at point to hurl.
-With prefix ARG, prompts for additional arguments to send to hurl."
-  (interactive "P")
+(defun hurl-mode--send-request-single (args)
+  "Executes current request at point and with ARGS."
   (let* ((beg (save-excursion
                 (forward-line)
                 (re-search-backward hurl-mode--http-method-regexp)
@@ -951,7 +947,7 @@ With prefix ARG, prompts for additional arguments to send to hurl."
          (req (buffer-substring-no-properties beg end)))
     (write-region beg end hurl-mode--temp-file-name)
     (hurl-mode--send-request
-     nil hurl-mode--temp-file-name
+     args hurl-mode--temp-file-name
      (lambda (p e) (when (not (process-live-p p))
                      (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
                        (ansi-color-apply-on-region (point-min) (point-max)))
@@ -960,12 +956,10 @@ With prefix ARG, prompts for additional arguments to send to hurl."
                      (display-buffer hurl-response--buffer-name)
                      (delete-file hurl-mode--temp-file-name))))))
 
-(defun hurl-mode-send-request-file (arg)
-  "Simple thin wrapper which sends the contents of the current file to hurl.
-With prefix ARG, prompts for additional arguments to send to hurl."
-  (interactive "P")
+(defun hurl-mode--send-request-file (args)
+  "Executes current file with ARGS."
   (write-region (point-min) (point-max) hurl-mode--temp-file-name)
-  (hurl-mode--send-request nil hurl-mode--temp-file-name
+  (hurl-mode--send-request args hurl-mode--temp-file-name
                            (lambda (p e) (when (not (process-live-p p))
                                            (hurl-response--parse-and-filter-output)
                                            (with-current-buffer hurl-response--output-buffer-name
@@ -974,17 +968,34 @@ With prefix ARG, prompts for additional arguments to send to hurl."
                                            (delete-file hurl-mode--temp-file-name)))))
 
 
-(defun hurl-mode-test-request-file (arg)
-  "Hurl wrapper function to send file for testing.
+(defun hurl-mode-send-request-single (arg)
+  "Simple thin wrapper which sends the request at point to hurl.
 With prefix ARG, prompts for additional arguments to send to hurl."
   (interactive "P")
-  (hurl-mode--send-request "--test"))
+  (hurl-mode--send-request-single (if arg (hurl--read-args) nil)))
+
+(defun hurl-mode-send-request-file (arg)
+  "Simple thin wrapper which sends the contents of the current file to hurl.
+With prefix ARG, prompts for additional arguments to send to hurl."
+  (interactive "P")
+  (hurl-mode--send-request-file (if arg (hurl--read-args) nil)))
+
+
+(defun hurl-mode-test-request-file (arg)
+  "Hurl wrapper function to send file for testing.
+With prefix ARG, prompts for additional arguments to send to hurl.
+Convenience command so we don't have to manually add --test
+via prefix arg to the non-test commands."
+  (interactive "P")
+  (hurl-mode--send-request-file (if arg (concat "--test" (hurl--read-args)) nil)))
 
 (defun hurl-mode-test-request-single (arg)
   "Hurl wrapper function to send the request at point for testing.
-With prefix ARG, prompts for additional arguments to send to hurl."
+With prefix ARG, prompts for additional arguments to send to hurl.
+Convenience command so we don't have to manually add --test
+via prefix arg to the non-test commands."
   (interactive "P")
-  (hurl-mode--send-request "--test"))
+  (hurl-mode--send-request-single (if arg (concat "--test" (hurl--read-args)) nil)))
 
 (setq hurl-mode-map
       (let ((map (make-sparse-keymap)))
