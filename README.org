@@ -37,6 +37,8 @@ POST {{host}}
 ,#+end_src
 #+end_example
 
+also see: file:example.org
+
 ** Response Output
 Will try to format using ~jSon-pretty-print~ with font-locking by ~json-mode~.
 If ~json-pretty-print~ fails we'll fall back to using =jq= if its available.

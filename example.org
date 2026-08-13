@@ -1,0 +1,300 @@
+Pass secrets via :secret (not sure why we'd ever need this)
+#+begin_src hurl :results output :var host="https://httpbin.org/post" :var zero=0 :secret one=1 :secret two=2 :async yes
+POST {{host}}
+zero: {{zero}}
+one: {{one}}
+two: {{two}}
+
+#+end_src
+
+
+TODO: integrate with ob-async somehow, sometimes ob-async just gives us =: expression:= for some reason
+
+For now I've added a custom =:asynchurl= so we can still get the nice nice features we're used to with normal hurl i.e. saving captures to .hurl-variables.
+Might still be possible to do with ob-async but..
+
+NOTE: check .hurl-variables after running this
+#+begin_src hurl :results value :asynchurl yes
+GET https://dog.ceo/api/breeds/list/all
+HTTP 200
+[Captures]
+ob_aus_breed: jsonpath "$.message.australian[1]"
+[Asserts]
+jsonpath "$.message.australian[*]" count == 2
+#+end_src
+
+#+RESULTS:
+#+begin_example
+{
+  "message": {
+    "affenpinscher": [],
+    "african": [
+      "wild"
+    ],
+    "airedale": [],
+    "akita": [],
+    "appenzeller": [],
+    "australian": [
+      "kelpie",
+      "shepherd"
+    ],
+    "bakharwal": [
+      "indian"
+    ],
+    "basenji": [],
+    "beagle": [],
+    "bluetick": [],
+    "borzoi": [],
+    "bouvier": [],
+    "boxer": [],
+    "brabancon": [],
+    "briard": [],
+    "buhund": [
+      "norwegian"
+    ],
+    "bulldog": [
+      "boston",
+      "english",
+      "french"
+    ],
+    "bullterrier": [
+      "staffordshire"
+    ],
+    "cattledog": [
+      "australian"
+    ],
+    "cavapoo": [],
+    "chihuahua": [],
+    "chippiparai": [
+      "indian"
+    ],
+    "chow": [],
+    "clumber": [],
+    "cockapoo": [],
+    "collie": [
+      "border"
+    ],
+    "coonhound": [],
+    "corgi": [
+      "cardigan"
+    ],
+    "cotondetulear": [],
+    "dachshund": [],
+    "dalmatian": [],
+    "dane": [
+      "great"
+    ],
+    "danish": [
+      "swedish-farmdog"
+    ],
+    "deerhound": [
+      "scottish"
+    ],
+    "dhole": [],
+    "dingo": [],
+    "doberman": [],
+    "elkhound": [
+      "norwegian"
+    ],
+    "entlebucher": [],
+    "eskimo": [],
+    "finnish": [
+      "lapphund"
+    ],
+    "frise": [
+      "bichon"
+    ],
+    "gaddi": [
+      "indian"
+    ],
+    "german": [
+      "shepherd"
+    ],
+    "greyhound": [
+      "indian",
+      "italian"
+    ],
+    "groenendael": [],
+    "havanese": [],
+    "hound": [
+      "afghan",
+      "basset",
+      "blood",
+      "english",
+      "ibizan",
+      "plott",
+      "walker"
+    ],
+    "husky": [],
+    "keeshond": [],
+    "kelpie": [],
+    "kombai": [],
+    "komondor": [],
+    "kuvasz": [],
+    "labradoodle": [],
+    "labrador": [],
+    "leonberg": [],
+    "lhasa": [],
+    "malamute": [],
+    "malinois": [],
+    "maltese": [],
+    "mastiff": [
+      "bull",
+      "english",
+      "indian",
+      "tibetan"
+    ],
+    "mexicanhairless": [],
+    "mix": [],
+    "mountain": [
+      "bernese",
+      "swiss"
+    ],
+    "mudhol": [
+      "indian"
+    ],
+    "newfoundland": [],
+    "otterhound": [],
+    "ovcharka": [
+      "caucasian"
+    ],
+    "papillon": [],
+    "pariah": [
+      "indian"
+    ],
+    "pekinese": [],
+    "pembroke": [],
+    "pinscher": [
+      "miniature"
+    ],
+    "pitbull": [],
+    "pointer": [
+      "german",
+      "germanlonghair"
+    ],
+    "pomeranian": [],
+    "poodle": [
+      "medium",
+      "miniature",
+      "standard",
+      "toy"
+    ],
+    "pug": [],
+    "puggle": [],
+    "pyrenees": [],
+    "rajapalayam": [
+      "indian"
+    ],
+    "redbone": [],
+    "retriever": [
+      "chesapeake",
+      "curly",
+      "flatcoated",
+      "golden"
+    ],
+    "ridgeback": [
+      "rhodesian"
+    ],
+    "rottweiler": [],
+    "rough": [
+      "collie"
+    ],
+    "saluki": [],
+    "samoyed": [],
+    "schipperke": [],
+    "schnauzer": [
+      "giant",
+      "miniature"
+    ],
+    "segugio": [
+      "italian"
+    ],
+    "setter": [
+      "english",
+      "gordon",
+      "irish"
+    ],
+    "sharpei": [],
+    "sheepdog": [
+      "english",
+      "indian",
+      "shetland"
+    ],
+    "shiba": [],
+    "shihtzu": [],
+    "spaniel": [
+      "blenheim",
+      "brittany",
+      "cocker",
+      "irish",
+      "japanese",
+      "sussex",
+      "welsh"
+    ],
+    "spitz": [
+      "indian",
+      "japanese"
+    ],
+    "springer": [
+      "english"
+    ],
+    "stbernard": [],
+    "terrier": [
+      "american",
+      "andalusian",
+      "australian",
+      "bedlington",
+      "border",
+      "boston",
+      "cairn",
+      "dandie",
+      "fox",
+      "irish",
+      "kerryblue",
+      "lakeland",
+      "norfolk",
+      "norwich",
+      "patterdale",
+      "russell",
+      "scottish",
+      "sealyham",
+      "silky",
+      "tibetan",
+      "toy",
+      "welsh",
+      "westhighland",
+      "wheaten",
+      "yorkshire"
+    ],
+    "tervuren": [],
+    "vizsla": [],
+    "waterdog": [
+      "spanish"
+    ],
+    "weimaraner": [],
+    "whippet": [],
+    "wolfhound": [
+      "irish"
+    ]
+  },
+  "status": "success"
+}
+
+#+end_example
+
+
+
+#+begin_src hurl :results output :asynchurl yes
+GET https://httpbin.org/delay/5
+HTTP 200
+#+end_src
+
+#+RESULTS:
+: error: Assert status code
+:   --> /var/folders/f0/ky71knsj0gl3258mz9c9fkqh0000gn/T/hurlTYbP2I.hurl:2:6
+:    |
+:    | GET https://httpbin.org/delay/5
+:  2 | HTTP 200
+:    |      ^^^ actual value is <503>
+:    |
+: 
