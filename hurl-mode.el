@@ -800,6 +800,19 @@ If not possible, return the resp as is."
                                              (substring-no-properties s (match-beginning 1) (match-end 1))))
                                    (split-string raw-captures "\n"))))))))
 
+(defun hurl-response--raw-response ()
+  "Retrieve and pre-process the response."
+  (let ((raw-resp (with-current-buffer hurl-response--output-buffer-name
+                    (goto-char (point-min))
+                    (buffer-substring (progn
+                                        (re-search-forward "* Timings:")
+                                        (re-search-forward "*$")
+                                        (line-end-position))
+                                      (progn (end-of-buffer)
+                                             (line-end-position))))))
+    raw-resp))
+
+
 (defun hurl-response--parse-and-filter-output (&optional variables-filename)
   "Processes the hurl --verbose output from the raw process output buffer.
 
@@ -821,6 +834,7 @@ Currently supports formatting:
                     (buffer-string)))
              (output-without-response (hurl-response--output-without-response))
              (resp-head (hurl-response--get-response-head))
+             (resp-raw (hurl-response--raw-response))
              (resp (hurl-response--preprocess-response))
              (formatted-resp (hurl-response--formatted-response resp-head resp))
              (captures (hurl-response--get-captures)))
@@ -844,7 +858,23 @@ Currently supports formatting:
                      (delete-line)))
                  (insert (mapconcat #'string-trim e "=") "\n"))
                captures)))
-          (insert formatted-resp "\n")
+          ;; Hurl generally outputs the response twice. Once under the
+          ;; "Response body:" section that has a "*" prefix on every line
+          ;; which is interpreted by Hurl in some way.
+          ;; This is generally the one we want to output.
+          ;; Again at the end of the verbose output not prefixed by anything
+          ;; which is the "raw" output.
+          ;;
+          ;; For unknown response types, the response body section is just Bytes...
+          ;; which isn't very useful, so we capture and insert that raw response
+          ;; from the end of the verbose output.
+          ;; An example is getting an m3u8 file i.e. from
+          ;; https://test-streams.mux.dev/ and check the raw output buffer
+          ;; see also: sample_raw_output_m3u8.txt for why this was needed
+          (if (string-match-p "^Bytes <[0-9a-fA-F]+\\(\\.\\.\\.\\)?>$" formatted-resp)
+              (insert resp-raw)
+            (insert formatted-resp "\n"))
+          
           (when hurl--image-saved-to-clipboard
             (clipboard-yank))))
     ;; something wrong happened with parsing so just output everything

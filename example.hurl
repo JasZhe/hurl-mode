@@ -13,3 +13,6 @@ image_url: jsonpath "$.message"
 jsonpath "$.message" exists
 
 GET {{image_url}} # can load image-mode in proc buffer to show the image
+
+
+GET https://test-streams.mux.dev/x36xhzz/url_6/193039199_mp4_h264_aac_hq_7.m3u8
