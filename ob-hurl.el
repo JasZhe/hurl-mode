@@ -37,6 +37,7 @@
 (require 'ob-ref)
 (require 'ob-comint)
 (require 'ob-eval)
+(require 'hurl-mode)
 
 ;; optionally define a file extension for this language
 (add-to-list 'org-babel-tangle-lang-exts '("hurl" . "tmp"))
@@ -61,6 +62,27 @@
       vars "\n")
      "\n" body "\n")))
 
+
+(defun org-babel-hurl--secret-args-from-params ()
+  "Parse repeated :secret entries from raw source block PARAMS.
+Return a string of hurl --secret arguments."
+  ;; HACK: babel normally dedupes non :var params before passing it to our execute function
+  ;; This retrieves the full raw org src block params
+  (when-let ((params (or (org-element-property :parameters (org-element-at-point))
+                         (when (bound-and-true-p org-babel-current-src-block-location)
+                           (save-excursion
+                             (goto-char org-babel-current-src-block-location)
+                             (org-element-property :parameters (org-element-at-point)))))))
+    (mapconcat
+     #'identity
+     (delq nil
+           (mapcar
+            (lambda (param)
+              (when (string-match "\\`secret[ \t]+\\(.+\\)\\'" param)
+                (format "--secret %s" (match-string 1 param))))
+            (org-babel-balanced-split params '((?\s ?\t) . ?:))))
+     " ")))
+
 ;; This is the main function which is called to evaluate a code
 ;; block.
 ;;
@@ -80,23 +102,30 @@ This function is called by `org-babel-execute-src-block'"
   (let* ((processed-params (org-babel-process-params params))
          ;; variables assigned for use in the block
          (vars (org-babel--get-vars processed-params))
-         ;; same as org-babel--get-vars but checking for :secret instead
-         (secrets (mapcar #'cdr
-	                  (cl-remove-if-not (lambda (x) (eq (car x) :secret)) params)))
+         (secret-args (org-babel-hurl--secret-args-from-params))
          (in-file (org-babel-temp-file "hurl" ".hurl"))
          (hurl-vars (cl-reduce
                      (lambda (acc elem)
                        (concat acc (format "--variable %s=%s" (car elem) (cdr elem)) " "))
                      vars :initial-value ""))
          ;; not sure how useful secrets are for an org-babel block but it was an easy lift to add this
-         (hurl-secrets (cl-reduce
-                        (lambda (acc secret) ;; secret is the full var="value"
-                          (concat acc (format "--secret %s" secret) " "))
-                        secrets :initial-value "")))
+         (hurl-secret-files-secrets
+          (mapconcat
+           (lambda (secret) (concat " --secret " (shell-quote-argument secret)))
+           (hurl-mode--read-secrets-files)))
+         (hurl-secrets (concat hurl-secret-files-secrets
+                               " "
+                               secret-args
+                               " "))
+         (args (concat hurl-vars hurl-secrets
+                       (when (file-exists-p hurl-global-variables-file)
+                         (concat " --variables-file " hurl-global-variables-file))
+                       (when (file-exists-p hurl-variables-file)
+                         (concat " --variables-file " hurl-variables-file)))))
     (with-temp-file in-file
       (insert body))
     (org-babel-eval
-     (format "hurl --verbose %s %s %s" hurl-vars hurl-secrets (org-babel-process-file-name in-file)) "")))
+     (format "hurl --verbose %s %s" args (org-babel-process-file-name in-file)) "")))
 
 (defun org-babel-hurl-var-to-hurl (var)
   "Convert an elisp var into a string of hurl source code
