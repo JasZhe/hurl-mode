@@ -933,6 +933,17 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
         (set-process-sentinel proc proc-sentinel))
       (set-process-filter proc #'hurl-response--verbose-filter))))
 
+(defun hurl-mode--process-sentinel (process _)
+  "Process sentinel to parse/prettify output from hurl PROCESS when it finishes.
+Also deletes the temporary file that was created to execute hurl."
+  (when (not (process-live-p process))
+    (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
+      (ansi-color-apply-on-region (point-min) (point-max)))
+    (with-current-buffer hurl-response--output-buffer-name
+      (hurl-response--parse-and-filter-output))
+    (display-buffer hurl-response--buffer-name)
+    (delete-file hurl-mode--temp-file-name)))
+
 (defun hurl-mode--send-request-single (args)
   "Executes current request at point and with ARGS."
   (let* ((beg (save-excursion
@@ -946,26 +957,12 @@ If `PROC-SENTINEL' is provided, then set it for the hurl process."
                 (line-beginning-position)))
          (req (buffer-substring-no-properties beg end)))
     (write-region beg end hurl-mode--temp-file-name)
-    (hurl-mode--send-request
-     args hurl-mode--temp-file-name
-     (lambda (p e) (when (not (process-live-p p))
-                     (with-current-buffer (get-buffer-create hurl-response--output-buffer-name)
-                       (ansi-color-apply-on-region (point-min) (point-max)))
-                     (with-current-buffer hurl-response--output-buffer-name
-                       (hurl-response--parse-and-filter-output))
-                     (display-buffer hurl-response--buffer-name)
-                     (delete-file hurl-mode--temp-file-name))))))
+    (hurl-mode--send-request args hurl-mode--temp-file-name #'hurl-mode--process-sentinel)))
 
 (defun hurl-mode--send-request-file (args)
   "Executes current file with ARGS."
   (write-region (point-min) (point-max) hurl-mode--temp-file-name)
-  (hurl-mode--send-request args hurl-mode--temp-file-name
-                           (lambda (p e) (when (not (process-live-p p))
-                                           (hurl-response--parse-and-filter-output)
-                                           (with-current-buffer hurl-response--output-buffer-name
-                                             (ansi-color-apply-on-region (point-min) (point-max)))
-                                           (display-buffer hurl-response--buffer-name)
-                                           (delete-file hurl-mode--temp-file-name)))))
+  (hurl-mode--send-request args hurl-mode--temp-file-name #'hurl-mode--process-sentinel))
 
 
 (defun hurl-mode-send-request-single (arg)
