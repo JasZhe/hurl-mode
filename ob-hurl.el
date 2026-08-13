@@ -40,6 +40,9 @@
 (require 'seq)
 (require 'hurl-mode)
 
+;; Declared here so the `let' in the optional ob-async integration is dynamic.
+(defvar async-prompt-for-password)
+
 ;; optionally define a file extension for this language
 (add-to-list 'org-babel-tangle-lang-exts '("hurl" . "tmp"))
 
@@ -132,17 +135,20 @@ Return a string of hurl --secret arguments."
       (goto-char (point-min))
       (if (re-search-forward "^error:" nil t)
           (buffer-substring-no-properties (line-beginning-position) (point-max))
-        (buffer-string)))))
+        (buffer-substring-no-properties (point-min) (point-max))))))
 
 (defun org-babel-hurl--formatted-response-output ()
   "Return only the formatted response body from hurl verbose output."
   (condition-case nil
       (let* ((resp-head (hurl-response--get-response-head))
              (resp (hurl-response--preprocess-response)))
-        (concat (hurl-response--formatted-response resp-head resp) "\n"))
+        ;; `async-start' serializes strings with text properties as lists.
+        ;; Babel then treats the result as a table rather than response text.
+        (substring-no-properties
+         (concat (hurl-response--formatted-response resp-head resp) "\n")))
     (error
      (with-current-buffer hurl-response--output-buffer-name
-       (buffer-string)))))
+       (buffer-substring-no-properties (point-min) (point-max))))))
 
 (defun org-babel-hurl--result-output (exit-code)
   "Return the best available hurl output for Org Babel results.
@@ -150,6 +156,31 @@ EXIT-CODE is the hurl process exit code."
   (if (zerop exit-code)
       (org-babel-hurl--formatted-response-output)
     (org-babel-hurl--error-output)))
+
+(defun org-babel-hurl--ob-async-around (original &rest args)
+  "Avoid false password prompts for Hurl blocks run through `ob-async'."
+  (let ((info (or (nth 2 args) (org-babel-get-src-block-info))))
+    (if (and (equal (nth 0 info) "hurl")
+             (assq :async (nth 2 info)))
+        ;; `async-read-from-client' tests raw result chunks against TRAMP's
+        ;; password regexp.  JSON output can match it despite no prompt.
+        (let ((async-prompt-for-password nil))
+          (apply original args))
+      (apply original args))))
+
+;;;###autoload
+(defun org-babel-hurl-enable-ob-async-compatibility ()
+  "Enable Hurl-specific compatibility with the optional `ob-async' package.
+
+This preserves capture writing in the child Emacs and prevents `ob-async' from
+mistaking Hurl response data for an interactive password prompt."
+  (interactive)
+  (unless (require 'ob-async nil t)
+    (user-error "ob-async is not available"))
+  (unless (advice-member-p #'org-babel-hurl--ob-async-around
+                           #'ob-async-org-babel-execute-src-block)
+    (advice-add #'ob-async-org-babel-execute-src-block :around
+                #'org-babel-hurl--ob-async-around)))
 
 (defun org-babel-hurl--log-async (message &rest args)
   "Log MESSAGE with ARGS to the async hurl process buffer."
