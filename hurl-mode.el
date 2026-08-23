@@ -813,6 +813,16 @@ If not possible, return the resp as is."
                                              (line-end-position))))))
     raw-resp))
 
+(defun hurl-response--test-results ()
+  "Retrieve test results from output if it exists."
+  (with-current-buffer hurl-response--output-buffer-name
+    (goto-char (point-min))
+    (when (re-search-forward
+           (format "^\\(?:Success\\|Failure\\) %s ([0-9]+ request(s) in [0-9]+ ms)$"
+                   (regexp-quote hurl-mode--temp-file-name))
+           nil t)
+      (buffer-substring (line-beginning-position) (point-max)))))
+
 
 (defun hurl-response--parse-and-filter-output (&optional variables-filename)
   "Processes the hurl --verbose output from the raw process output buffer.
@@ -836,6 +846,7 @@ Currently supports formatting:
              (output-without-response (hurl-response--output-without-response))
              (resp-head (hurl-response--get-response-head))
              (resp-raw (hurl-response--raw-response))
+             (test-results (hurl-response--test-results))
              (resp (hurl-response--preprocess-response))
              (formatted-resp (hurl-response--formatted-response resp-head resp))
              (captures (hurl-response--get-captures)))
@@ -873,8 +884,12 @@ Currently supports formatting:
           ;; https://test-streams.mux.dev/ and check the raw output buffer
           ;; see also: sample_raw_output_m3u8.txt for why this was needed
           (if (string-match-p "^Bytes <[0-9a-fA-F]+\\(\\.\\.\\.\\)?>$" formatted-resp)
-              (insert resp-raw)
+              ;; if we run tests then hurl doesn't do that second raw-response
+              ;; and only does the test summary
+              (unless test-results (insert resp-raw))
             (insert formatted-resp "\n"))
+
+          (when test-results (insert test-results))
           
           (when hurl--image-saved-to-clipboard
             (clipboard-yank))))
@@ -1016,7 +1031,7 @@ With prefix ARG, prompts for additional arguments to send to hurl.
 Convenience command so we don't have to manually add --test
 via prefix arg to the non-test commands."
   (interactive "P")
-  (hurl-mode--send-request-file (if arg (concat "--test" (hurl--read-args)) nil)))
+  (hurl-mode--send-request-file (if arg (concat "--test" (hurl--read-args)) "--test")))
 
 (defun hurl-mode-test-request-single (arg)
   "Hurl wrapper function to send the request at point for testing.
@@ -1024,7 +1039,7 @@ With prefix ARG, prompts for additional arguments to send to hurl.
 Convenience command so we don't have to manually add --test
 via prefix arg to the non-test commands."
   (interactive "P")
-  (hurl-mode--send-request-single (if arg (concat "--test" (hurl--read-args)) nil)))
+  (hurl-mode--send-request-single (if arg (concat "--test" (hurl--read-args)) "--test")))
 
 (setq hurl-mode-map
       (let ((map (make-sparse-keymap)))
