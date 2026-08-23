@@ -204,7 +204,8 @@ Setting this will adjust those settings only for the hurl process we create."
 (defconst hurl-mode--http-method-regexp
   (rx-to-string `(: bol
                   (group (or ,@hurl-mode--http-method-keywords))
-                  (group (+ not-newline)))))
+                  (+ (any " \t"))
+                  (group (* not-newline)))))
 
 (defconst hurl-mode--template-regexp
   (rx-to-string `(: "{{" (* (or alnum "-" "_")) "}}")))
@@ -976,12 +977,13 @@ Also deletes the temporary file that was created to execute hurl."
 
 (defun hurl-mode--send-request-single (args)
   "Executes current request at point and with ARGS."
-  (let* ((beg (save-excursion
-                (forward-line)
+  (let* ((case-fold-search nil) ;; hurl requires methods to be upper case
+         (beg (save-excursion
+                (end-of-line)
                 (re-search-backward hurl-mode--http-method-regexp)
                 (line-beginning-position)))
          (end (save-excursion
-                (forward-line)
+                (end-of-line)
                 ;; if we're at the last request in the file, there's no next to search forward for
                 (re-search-forward hurl-mode--http-method-regexp nil 1)
                 (line-beginning-position)))
